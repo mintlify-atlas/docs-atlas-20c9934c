@@ -1,0 +1,83 @@
+---
+title: 'Exp_GA'
+description: 'Geodesic exponential map on the General Affine group GA(n).'
+keywords: ['GA(n)', 'general affine', 'affine transformations', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  GA(n) is the group of invertible affine transformations of ℝⁿ. It can be identified with
+  (n+1)×(n+1) matrices of the form `[A, t; 0, 1]`, where `A ∈ GL(n)` and `t ∈ ℝⁿ`.
+  Its Lie algebra **ga(n)** consists of matrices of the form `[B, τ; 0, 0]`, with no
+  constraint on `B` beyond square invertibility of `A`.
+</Info>
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_GA( U0 , time )
+```
+
+## Description
+
+Computes the geodesic on GA(n) starting at the identity, driven by the Lie algebra element `U0`.
+
+Unlike the group-specific exponentials for SO(n), SE(n), or ST(n), **`Exp_GA` uses a generic
+numerical integration** rather than a closed-form formula. It delegates to the general `Exp`
+function with the GA(n) Lie algebra basis:
+
+```matlab
+B = LIEbasis('ga(n)');
+[ Qt(:,:,k) , Ut(:,:,k) ] = Exp( Q0 , V0 , B , m , struct('T', time(k)) );
+```
+
+The basis `B` is retrieved via `LIEbasis('ga(d)')` where `d` is inferred from the size of `U0`.
+
+<Warning>
+  `Exp_GA` relies on the generic `Exp` function and does not use a closed-form matrix
+  exponential. It may be slower than the group-specific exponentials for SO(n), SE(n), or GL(n)
+  at the same problem size.
+</Warning>
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **ga(n)**: a (d+1)×(d+1) matrix of the form `[B, τ; 0, 0]`.
+  The last row must be zero (tolerance 1e-12).
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of GA(n) group elements at the requested time points.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of Lie algebra velocity elements in **ga(n)** at each time point.
+</ResponseField>
+
+## Example
+
+```matlab
+% GA(2): general affine transformation in 2D
+B_block = [1, 0.5; 0.2, -1];   % arbitrary 2x2 (gl(2) part)
+tau     = [0.3; -0.1];           % translation velocity
+
+d = 2;
+U0 = [B_block, tau; zeros(1, d+1)];
+
+[Qt, Ut] = Exp_GA(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % affine transformation at t = 1
+```
+
+## Notes
+
+- **Generic (non-closed-form) computation**: `Exp_GA` delegates to the general `Exp` ODE solver
+  using the GA(n) Lie algebra basis from `LIEbasis`. This contrasts with the closed-form
+  implementations in `Exp_SO`, `Exp_SE`, `Exp_GL`, `Exp_ST`, `Exp_S`, and `Exp_T`.
+- The function validates that the last row of `U0` is zero.
+- Both `Qt` and `Ut` are always allocated and computed (no lazy second-output pattern).

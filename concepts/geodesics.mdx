@@ -1,0 +1,262 @@
+---
+title: "Geodesics on Lie groups"
+description: "How geodesics are defined under left- and right-invariant metrics, and what the exponential and logarithm maps compute in LIgeodesics."
+keywords: ["geodesic", "exponential map", "logarithm map", "Riemannian", "Lie group", "Euler-Poincaré"]
+---
+
+A **geodesic** is the shortest path between two points on a Riemannian manifold — the curved-space analogue of a straight line. On a Lie group with an invariant metric, geodesics starting at the identity are completely determined by their initial velocity in the Lie algebra, and can be computed with the **Riemannian exponential map**.
+
+This page explains what the exponential and logarithm maps compute, how LIgeodesics implements them, and when to use the generic versus the closed-form routines.
+
+## Geodesics from the identity
+
+Let `G` be a Lie group with Lie algebra `g` and left-invariant metric `M`. A curve `Q: [0,1] → G` is a geodesic starting at the identity if it satisfies the **Euler–Poincaré equation** for the left-trivialized velocity `U(t) = Q(t)⁻¹ Q̇(t) ∈ g`:
+
+```
+U̇ = Σ[ U^T, χ(U) ] - Σ[ χ(U), U^T ]
+```
+
+where `Σ` and `χ` are the linear operators derived from the basis and metric tensor (see [Invariant metrics](/concepts/invariant-metrics)). This is a first-order ODE on the Lie algebra — a finite-dimensional vector space — which is much easier to integrate than a curved-space equation on the group itself.
+
+The group element `Q(t)` is then recovered by integrating the reconstruction equation:
+
+```
+Q̇(t) = Q(t) U(t),   Q(0) = I
+```
+
+## The Riemannian exponential map
+
+The **Riemannian exponential map** at the identity,
+
+```
+Exp_I: g → G,    U₀ ↦ Q(1)
+```
+
+takes an initial velocity `U₀ ∈ g` and returns the endpoint `Q(1)` of the geodesic at time `t=1`. In LIgeodesics:
+
+```matlab
+Q1 = Exp(U0, B, M);
+```
+
+where `B` is the algebra basis and `M` is the metric tensor.
+
+<Note>
+The Riemannian exponential `Exp` coincides with the **matrix exponential** `expm(U₀)` only when `U₀` is a **uniparametric direction** — one for which the geodesic is a one-parameter subgroup. This happens, for instance, for pure rotations in SO(n) or pure translations in T(n). For general initial velocities in non-compact groups like SE(n) or SIM(n), `Exp` and `expm` give different results.
+</Note>
+
+### Geodesic from an arbitrary starting point
+
+Left-invariance means geodesics from an arbitrary `Q₀` are obtained by left-translating the identity geodesic:
+
+```
+Q(t) = Q₀ · Exp_I(Q₀⁻¹ V₀, t)
+```
+
+where `V₀ = Q₀ U₀` is the velocity at `Q₀` in the ambient space. In MATLAB:
+
+```matlab
+% Geodesic from Q0 with velocity V0 on SE(2)
+B  = LIEbasis('se(2)');
+M  = eye(3);
+Q0 = [ cos(pi/4), -sin(pi/4), 2 ;
+       sin(pi/4),  cos(pi/4), 1 ;
+       0,          0,         1 ];
+V0 = Q0 * U0;            % ambient-space velocity at Q0
+Q1 = Q0 * Exp(Q0 \ V0, B, M);   % endpoint at t=1
+```
+
+## The Riemannian logarithm map
+
+The **Riemannian logarithm map** is the inverse of the exponential:
+
+```
+Log_I: G → g,    Q ↦ U₀  such that  Exp_I(U₀) = Q
+```
+
+It returns the initial velocity `U₀` (and the geodesic distance `d = ‖U₀‖_M`) of the unique shortest geodesic from the identity to `Q`. In LIgeodesics:
+
+```matlab
+[d, U0] = Log(Q, B, M);
+```
+
+The generic `Log` uses Gauss–Newton optimization in the Lie algebra coordinates, iteratively minimizing `‖Exp(u) - Q‖²`. Group-specific logarithms (`Log_SO`, `Log_SE`, `Log_SIM`, …) use closed-form formulas.
+
+## Uniparametric geodesics
+
+When the initial velocity `U₀` satisfies
+
+```
+Σ[ U₀^T, χ(U₀) ] = 0
+```
+
+the geodesic is a **one-parameter subgroup** and `Exp` reduces to the matrix exponential `expm(U₀ t)`. LIgeodesics detects this automatically and uses the fast closed-form path.
+
+Examples of uniparametric directions:
+
+- Pure rotation in SO(n): `U₀` is skew-symmetric
+- Pure translation in T(n): `U₀` has the form `[0 … 0 τ; 0 … 0 0]`
+- Pure isotropic scaling: `U₀ = σ I`
+
+## Generic vs closed-form functions
+
+LIgeodesics provides two layers of implementation:
+
+### Generic functions
+
+`Exp` and `Log` work on any matrix Lie group. You specify the group entirely through its basis `B` and metric tensor `M`.
+
+- `Exp` integrates the Euler–Poincaré ODE with an adaptive Taylor-series method. The Taylor order `R` is chosen automatically based on `‖U₀‖_M`.
+- `Log` solves the inverse problem with Gauss–Newton in the algebra.
+
+Use the generic functions when:
+- Working with a non-standard or custom group
+- Prototyping with different metrics before optimising
+- The group dimension is small enough that generic integration is fast enough
+
+### Closed-form functions
+
+For the most common groups, dedicated functions use analytical formulas:
+
+| Group | Exponential | Logarithm |
+|---|---|---|
+| SO(n) | `Exp_SO` | `Log_SO` |
+| SE(n) | `Exp_SE` | `Log_SE` |
+| SIM(n) | `Exp_SIM` | `Log_SIM` |
+| ST(n) | `Exp_ST` | `Log_ST` |
+| GL(n) | `Exp_GL` | `Log_GL` |
+| SL(n) | `Exp_SL` | — |
+| S(n) | `Exp_S` | `Log_S` |
+| T(n) | `Exp_T` | — |
+| GA(n) | `Exp_GA` | — |
+
+Right-invariant variants are named with an `r` suffix: `Exp_SEr`, `Log_SEr`, `Exp_SIMr`, `Log_SIMr`, `Exp_GLr`, `Log_GLr`.
+
+<Tip>
+For large-scale computation (e.g., registering thousands of images), always prefer the closed-form functions over the generic `Exp`/`Log`. The analytic formulas avoid ODE integration entirely.
+</Tip>
+
+## Examples
+
+### SO(3) — rotation
+
+On SO(3), geodesics are rotations about a fixed axis. The exponential maps a skew-symmetric velocity to a rotation matrix via Rodrigues' formula:
+
+```matlab
+% Rotate by 90° around the z-axis
+omega = [ 0, -1, 0 ;
+          1,  0, 0 ;
+          0,  0, 0 ] * (pi/2);   % skew-symmetric, ||omega|| = pi/2
+
+Q1 = Exp_SO(omega);      % closed-form (Rodrigues)
+Q2 = expm(omega);        % identical: SO(n) geodesics are matrix exponentials
+
+% Geodesic distance from I to Q1
+[d, U] = Log_SO(Q1);     % d ≈ pi/2
+```
+
+### SE(2) — rigid motion in the plane
+
+On SE(2), the algebra element combines a skew rotation `ω` and a translation `τ`:
+
+```matlab
+B  = LIEbasis('se(2)');
+M  = eye(3);
+
+% Initial velocity: rotate by 1 rad and translate by (2, 0.5)
+U0 = [  0    1   2.0 ;
+       -1    0   0.5 ;
+        0    0   0   ];
+
+Q1_generic    = Exp(U0, B, M);    % generic integrator
+Q1_closedform = Exp_SE(U0);       % closed-form (identical result)
+
+% Geodesic distance
+[d, U_back] = Log_SE(Q1_generic);
+```
+
+### SIM(2) — similarity transformation
+
+SIM(2) adds a log-scale `σ` to SE(2). The velocity element is:
+
+```
+U = [ σ    ω    τ₁ ]
+    [ -ω   σ    τ₂ ]
+    [  0   0    0  ]
+```
+
+```matlab
+sigma = 0.3;   omega = 0.8;   tau = [1; 0.5];
+U0 = [ sigma,  omega,  tau(1) ;
+      -omega,  sigma,  tau(2) ;
+       0,      0,      0      ];
+
+Q1 = Exp_SIM(U0);
+[d, U_back] = Log_SIM(Q1);
+```
+
+### Computing a geodesic path
+
+To sample multiple points along a geodesic, pass a time vector as the `OPTIONS.T` field or directly as the fourth argument:
+
+```matlab
+B  = LIEbasis('se(2)');
+M  = eye(3);
+U0 = [ 0, 1, 2 ; -1, 0, 0.5 ; 0, 0, 0 ];
+
+times = linspace(0, 1, 50);
+Qt = Exp(U0, B, M, times);    % 3×3×50 array of group elements
+
+% Extract translation components for plotting
+tx = squeeze(Qt(1, 3, :));
+ty = squeeze(Qt(2, 3, :));
+figure; plot(tx, ty); axis equal;
+title('SE(2) geodesic path (translation component)');
+```
+
+## Right-invariant geodesics
+
+For right-invariant geodesics, use `Expr` and `Logr`, or the `*r`-suffixed group functions:
+
+```matlab
+B  = LIEbasis('se(2)');
+M  = eye(3);
+
+Q0 = [ cos(1), -sin(1), 3 ; sin(1), cos(1), 1 ; 0, 0, 1 ];
+V0 = [ 0, 0.5, 1 ; -0.5, 0, 0 ; 0, 0, 0 ] * Q0;  % right-trivialized velocity
+
+% Right-invariant exponential from I
+Q1 = Expr(V0 / Q0, B, M);
+
+% Verify right-invariance: Q1*Q0 == Expr(V0, B, M)*Q0
+```
+
+## Adaptive integration in Exp
+
+The generic `Exp` uses a Taylor-series method to integrate the Euler–Poincaré ODE. At each step it:
+
+1. Expands both `U(t)` and `Q(t)` as Taylor series of order `R` in the step size `δ`.
+2. Estimates a safe step `δ*` from the magnitude of the `R`-th term.
+3. Evaluates two conservation checks (energy `E` and momentum `S`) and reduces `δ` until both are within the specified tolerances.
+4. Advances `t → t + δ` and repeats until `t = T`.
+
+Key options:
+
+```matlab
+OPTS.TOLERANCE   = 1e-12;    % Taylor truncation tolerance
+OPTS.THRESHOLD_E = -1e-12;   % relative energy conservation threshold
+OPTS.THRESHOLD_S = -1e-12;   % relative momentum conservation threshold
+OPTS.ALPHA       = 0.75;     % step-size reduction factor
+OPTS.T           = linspace(0, 1, 100);  % output times
+
+Qt = Exp(U0, B, M, OPTS);
+```
+
+For simple problems, the defaults work well. Increase `TOLERANCE` for speed or decrease it for higher accuracy.
+
+## Further reading
+
+- [Matrix Lie groups](/concepts/lie-groups) — group and algebra definitions
+- [Invariant metrics](/concepts/invariant-metrics) — choosing and interpreting the metric tensor
+- [`Exp` API reference](/api/exp) — full option reference for the generic exponential
+- [`Log` API reference](/api/log) — generic Riemannian logarithm
+- [Computing geodesics guide](/guides/computing-geodesics) — step-by-step walkthrough

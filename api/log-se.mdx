@@ -1,0 +1,146 @@
+---
+title: 'Log_SE / Log_SEr'
+description: 'Riemannian logarithm on the special Euclidean group SE(n), in left- and right-invariant forms.'
+---
+
+The special Euclidean group SE(n) is the group of rigid-body transformations in n dimensions, represented as (n+1)×(n+1) homogeneous matrices:
+
+$$Q = \begin{bmatrix} R & t \\ 0 & 1 \end{bmatrix}, \quad R \in SO(n),\ t \in \mathbb{R}^n$$
+
+Two logarithm variants are provided depending on which invariance is desired.
+
+<Tabs>
+  <Tab title="Log_SE (left-invariant)">
+
+## Signature
+
+```matlab
+[d, U] = Log_SE(Q)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An (n+1)×(n+1) homogeneous matrix in SE(n). The rotation block `Q(1:n,1:n)` must satisfy both `R*R' == I` and `R'*R == I` (tolerance 1e-8). The last row must be `[0…0 1]`.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Left-invariant geodesic distance combining the rotational and translational components.
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Lie algebra element in se(n), an (n+1)×(n+1) matrix of the form:
+  ```
+  U = [ Omega  t ]
+      [  0     0 ]
+  ```
+  where `Omega` is skew-symmetric and `t` is the translation vector taken directly from `Q`.
+</ResponseField>
+
+## Details
+
+For the **left-invariant** logarithm, the translation part of the Lie algebra element is taken verbatim from the translation column of `Q`:
+
+```
+U(1:n, 1:n) = logmrot(Q(1:n,1:n))   % rotation log
+U(1:n, n+1) = Q(1:n, n+1)           % translation copied directly
+```
+
+The distance is:
+
+$$d = \sqrt{\|\text{skew}(\Omega)\|_F^2 + \|t\|^2}$$
+
+  </Tab>
+  <Tab title="Log_SEr (right-invariant)">
+
+## Signature
+
+```matlab
+[d, U] = Log_SEr(Q)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An (n+1)×(n+1) homogeneous matrix in SE(n). The rotation block must satisfy both orthogonality conditions (tolerance 1e-10). The last row must be `[0…0 1]`.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Right-invariant geodesic distance combining the rotational and translational components.
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Lie algebra element in se(n), an (n+1)×(n+1) matrix. The translation part is pulled back to the body frame:
+  ```
+  U(1:n, n+1) = R \ t   % body-frame translation
+  ```
+</ResponseField>
+
+## Details
+
+For the **right-invariant** logarithm, the translation is expressed in the body (local) coordinate frame by solving `R * v = t`:
+
+```
+U(1:n, 1:n) = logmrot(Q(1:n,1:n))
+U(1:n, n+1) = Q(1:n,1:n) \ Q(1:n,n+1)   % body-frame translation
+```
+
+The distance formula is identical:
+
+$$d = \sqrt{\|\text{skew}(\Omega)\|_F^2 + \|v\|^2}$$
+
+  </Tab>
+</Tabs>
+
+<Note>
+The choice between `Log_SE` and `Log_SEr` must match the invariance used in `KarcherMean` or any other computation that combines logarithms. Mixing invariances will give incorrect results.
+</Note>
+
+<Warning>
+Both functions validate the SE(n) structure. Passing a matrix whose last row is not `[0…0 1]` or whose rotation block is not orthogonal will raise an error.
+</Warning>
+
+## Examples
+
+### 2D rigid-body motion (left-invariant)
+
+```matlab
+theta = pi/6;
+R = [cos(theta), -sin(theta); sin(theta), cos(theta)];
+t = [3; 1];
+
+Q = [R, t; 0, 0, 1];
+
+[d, U] = Log_SE(Q);
+% U(1:2,1:2) is the skew-sym log of R
+% U(1:2,3)  == t  (left-invariant: world-frame translation)
+```
+
+### 2D rigid-body motion (right-invariant)
+
+```matlab
+[d, U] = Log_SEr(Q);
+% U(1:2,3) == R \ t  (body-frame translation)
+```
+
+### 3D rigid-body motion
+
+```matlab
+R3 = expm([0, -1, 0; 1, 0, 0; 0, 0, 0]);  % 1-rad rotation around z
+t3 = [0.5; 0.2; 0.0];
+Q3 = [R3, t3; 0, 0, 0, 1];
+
+[d, U] = Log_SE(Q3);
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `Log_SO` | Logarithm on SO(n) |
+| `Log_SIM` | Logarithm on SIM(n) (similarity transforms) |
+| `LIEbasis('se(n)')` | Basis matrices for the se(n) Lie algebra |

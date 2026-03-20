@@ -1,0 +1,85 @@
+---
+title: 'Log_SO'
+description: 'Riemannian logarithm on the special orthogonal group SO(n).'
+---
+
+`Log_SO` computes the Riemannian logarithm at the identity for an element of SO(n) — the group of n×n real rotation matrices. It returns both the geodesic distance from the identity and the corresponding Lie algebra element (skew-symmetric matrix).
+
+## Signature
+
+```matlab
+[d, U] = Log_SO(Q)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An n×n rotation matrix satisfying `Q * Q' == I` and `Q' * Q == I`. The function validates both orthogonality conditions with tolerance 1e-8.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Geodesic distance from the identity to `Q` in SO(n), computed as the Frobenius norm of the skew-symmetric part of the matrix logarithm.
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  The Lie algebra element (skew-symmetric matrix, n×n) such that `expm(U) ≈ Q`. The real part of the rotation matrix logarithm is returned.
+</ResponseField>
+
+## Details
+
+Internally, `Log_SO` calls `logmrot` — a numerically stable rotation-matrix logarithm — and then extracts the skew-symmetric part via `skewmatrix`. The geodesic distance is the Frobenius norm of those skew-symmetric entries:
+
+$$d = \|\text{skew}(U)\|_F$$
+
+For SO(2), `d` equals the absolute rotation angle. For SO(3), `d` equals the rotation angle (in radians) around the axis of rotation.
+
+<Warning>
+`Q` must be a proper rotation matrix (determinant +1). Passing a reflection (`det(Q) == -1`) or a numerically poor approximation (error > 1e-8) will raise an error.
+</Warning>
+
+<Note>
+The logarithm is unique and well-defined when no eigenvalue of `Q` equals −1, i.e., when `Q` has no rotation angle equal to π. Near conjugate points (rotation angle ≈ π), numerical accuracy may degrade.
+</Note>
+
+## Examples
+
+### 2D rotation
+
+```matlab
+theta = pi/4;
+Q = [cos(theta), -sin(theta);
+     sin(theta),  cos(theta)];
+
+[d, U] = Log_SO(Q);
+% d ≈ 0.7854  (= pi/4)
+% U = [0, -pi/4; pi/4, 0]
+```
+
+### 3D rotation (axis-angle)
+
+```matlab
+% 90-degree rotation around z-axis
+Q = [0, -1, 0;
+     1,  0, 0;
+     0,  0, 1];
+
+[d, U] = Log_SO(Q);
+% d ≈ 1.5708  (= pi/2)
+% U is the 3x3 skew-symmetric matrix for the z-axis
+```
+
+### Distance only
+
+```matlab
+d = Log_SO(Q);   % request only d when U is not needed
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `Log_SE` | Logarithm on SE(n) (rigid-body motions), left-invariant |
+| `Log_SIM` | Logarithm on SIM(n) (similarities), left-invariant |
+| `LIEbasis('so(n)')` | Basis matrices for the so(n) Lie algebra |

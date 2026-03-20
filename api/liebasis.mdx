@@ -1,0 +1,167 @@
+---
+title: 'LIEbasis'
+description: 'Factory function that constructs a matrix basis for a named Lie algebra, with optional metric-orthogonalization.'
+---
+
+`LIEbasis` is the central factory for Lie algebra bases in LIgeodesics. Given a group name string, it returns a matrix whose columns are the vectorized basis elements. An optional metric tensor `m` can be supplied to orthogonalize the basis with respect to that metric.
+
+## Signature
+
+```matlab
+B = LIEbasis(name)
+B = LIEbasis(name, m)
+[B, m] = LIEbasis(name)
+[B, m] = LIEbasis(name, m)
+B = LIEbasis(B_custom)
+B = LIEbasis(B_custom, m)
+```
+
+## Parameters
+
+<ParamField path="name" type="string">
+  A string identifying the Lie group/algebra. Case-insensitive. The dimension `n` is embedded in the string, e.g. `'so(3)'` or `'se(2)'`. See the full table below for all supported identifiers.
+</ParamField>
+
+<ParamField path="B_custom" type="cell array | double matrix">
+  Instead of a name string, you may pass a pre-built basis directly. Accepts:
+  - A cell array of square matrices (each is one basis element)
+  - An n²×K matrix where each column is a vectorized basis element
+
+  When a custom basis is passed, `LIEbasis` validates it (square elements, full rank, closed under commutation) and optionally orthogonalizes it.
+</ParamField>
+
+<ParamField path="m" type="double matrix">
+  A K×K symmetric positive-definite metric tensor, where K is the number of basis elements. When provided, the returned basis `B` is orthogonalized with respect to `m`. When requesting two outputs `[B, m]`, the returned `m` is the metric expressed in the new orthogonal coordinates.
+
+  Defaults to `eye(K)` (standard Euclidean metric).
+</ParamField>
+
+## Return values
+
+<ResponseField name="B" type="double matrix">
+  An n²×K matrix. Each column is the vectorized (column-major) form of one basis element. The matrix is suitable for use with `StructureTensor`, `KarcherMean`, `GeodesicRegression`, and all other LIgeodesics functions that accept a basis.
+</ResponseField>
+
+<ResponseField name="m" type="double matrix">
+  Returned only when two outputs are requested. The K×K metric tensor in the (possibly orthogonalized) basis coordinates. When `m` input is `eye(K)`, the output `m` is also `eye(K)` (the orthogonalized basis is already orthonormal).
+</ResponseField>
+
+## Supported group identifiers
+
+All identifiers are case-insensitive. Replace `n` with the desired integer dimension.
+
+| Identifier | Group / Algebra | Basis dimension | Description |
+|---|---|---|---|
+| `'so(n)'` | SO(n) | n(n−1)/2 | Skew-symmetric matrices; rotation group algebra |
+| `'se(n)'` | SE(n) | n(n−1)/2 + n | Rigid-body motions: skew part + translation columns |
+| `'sim(n)'` | SIM(n) | 1 + n(n−1)/2 + n | Similarities: scale + rotation + translation |
+| `'st(n)'` | ST(n) | 1 + n | Isotropic scale + translation (scalar scale times identity) |
+| `'s(n)'` | S(n) | n | Diagonal positive-definite matrices (independent scalings) |
+| `'s+t(n)'` | S(n)⋊T(n) | 2n | Independent scalings + translations (no rotation) |
+| `'gl(n)'` | GL(n) | n² | All n×n matrices (full general linear algebra) |
+| `'sl(n)'` | SL(n) | n²−1 | Trace-zero matrices (special linear algebra) |
+| `'sa(n)'` | SA(n) affine | n²−1 + n | SL(n) extended with translation |
+| `'ga(n)'` | GA(n) affine | n(n+1) | Full affine group (all invertible affine maps) |
+| `'so*s(n)'` | SO(n)×S | n(n−1)/2 + 1 | Rotation + single isotropic scale |
+| `'so*t(n)'` | SO(n)⋊T(n) | n(n−1)/2 + n | Rotation + translation in block-diagonal form |
+| `'so*s*t(n)'` | SO(n)×S⋊T(n) | n(n−1)/2 + 1 + n | Rotation + isotropic scale + translation |
+| `'s*so*t(n)'` | S×SO(n)⋊T(n) | 1 + n(n−1)/2 + n | Same elements as so*s*t, different ordering |
+| `'mo(n)'` | MO(n) | 1 + n(n−1)/2 + 2n | Extended motion group with extra translation generators |
+| `'t(n)'` | T(n) | n | Pure translation group |
+
+<Note>
+The `'so*t(n)'`, `'so*s*t(n)'`, and `'s*so*t(n)'` groups are constructed using block-diagonal matrices embedding a n×n rotation/scale block and an (n+1)×(n+1) translation block separately. This is distinct from SE(n) and SIM(n) which use a single (n+1)×(n+1) representation.
+</Note>
+
+## Validation
+
+When a custom basis is passed (not a string), `LIEbasis` automatically:
+
+1. Checks that all basis matrices are square.
+2. Verifies the basis is full rank (K independent columns).
+3. Verifies closure under the Lie bracket: for all pairs `Bi`, `Bj`, the commutator `[Bi, Bj] = Bi*Bj - Bj*Bi` must lie in the span of the basis.
+
+If any check fails, an error is raised.
+
+<Warning>
+Passing a non-Lie-algebra (e.g. a set of matrices not closed under commutation) will raise an error during validation. Make sure your custom basis genuinely spans a Lie algebra.
+</Warning>
+
+## Metric orthogonalization
+
+When a metric `m` is supplied (or two outputs are requested), `LIEbasis` QR-decomposes `B` and transforms the metric accordingly:
+
+```matlab
+% 1-output with metric: orthogonalize columns of B by m
+B_ortho = LIEbasis('se(2)', m);
+
+% 2-output: get orthonormal B and the resulting (identity) metric
+[B_ortho, m_new] = LIEbasis('se(2)', m);
+```
+
+This is useful when computing `StructureTensor` or `KarcherMean` with a non-Euclidean metric on the Lie algebra.
+
+## Examples
+
+### Get a standard basis
+
+```matlab
+% so(3): 3 basis elements for 3D rotations (3x3 matrices -> 9x3 output)
+B = LIEbasis('so(3)');
+% size(B) == [9, 3]
+
+% se(2): 3 basis elements (rotation + 2 translations)
+B = LIEbasis('se(2)');
+% size(B) == [9, 3]
+```
+
+### Retrieve and display basis matrices
+
+```matlab
+B = LIEbasis('so(3)');
+n = sqrt(size(B,1));   % n=3
+K = size(B,2);          % K=3
+
+for k = 1:K
+    Bk = reshape(B(:,k), [n, n]);
+    disp(Bk)
+end
+```
+
+### Custom metric orthogonalization
+
+```matlab
+K = 4;  % dimension of sim(2) is 1+1+2 = 4
+m = eye(K) + 2*randn(K);
+m = m * m.';              % make it SPD
+
+B_orig  = LIEbasis('sim(2)');
+[B_new, m_new] = LIEbasis(B_orig, m);
+
+% Verify: m_new should be close to identity
+disp(norm(m_new - eye(K), 'fro'));  % should be near 0
+```
+
+### Pass a custom cell-array basis
+
+```matlab
+% Build a 2-element basis manually
+Bcell = { [0, -1; 1, 0] , [1, 0; 0, 0] };
+B = LIEbasis(Bcell);
+```
+
+### Use basis with StructureTensor
+
+```matlab
+B = LIEbasis('se(2)');
+C = StructureTensor(B);
+% C is a 3x3x3 array of structure constants
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `StructureTensor` | Computes structure constants from a basis |
+| `KarcherMean` | Fréchet mean using a basis for tangent vectors |
+| `GeodesicRegression` | Geodesic regression using a basis |

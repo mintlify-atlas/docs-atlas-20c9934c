@@ -1,0 +1,128 @@
+---
+title: Expr
+description: Right-invariant exponential map wrapper for matrix Lie groups.
+---
+
+`Expr` computes the **right-invariant** Riemannian exponential map by internally delegating to `Exp` (the left-invariant exponential) after conjugating the velocity and inverting the result. It can also accept a pre-built left-invariant exponential function handle, allowing it to work with any compatible implementation.
+
+## Signature
+
+```matlab
+[Q1, U1] = Expr( U0 , matBases , MetricTensor )
+[Q1, U1] = Expr( U0 , matBases , MetricTensor , ... )
+[Q1, U1] = Expr( U0 , Exp_left_FCN )
+[Q1, U1] = Expr( U0 , T , Exp_left_FCN )
+```
+
+## Parameters
+
+<ParamField path="U0" type="double (n×n matrix)" required>
+  Initial velocity in the Lie algebra for the right-invariant geodesic.
+</ParamField>
+
+<ParamField path="matBases" type="double (n²×k matrix)">
+  Column-stacked basis of the Lie algebra. Required when not passing a function handle. Forwarded directly to `Exp`.
+</ParamField>
+
+<ParamField path="MetricTensor" type="double (k×k matrix)">
+  Positive-definite metric tensor on the algebra. Required when not passing a function handle. Forwarded directly to `Exp`.
+</ParamField>
+
+<ParamField path="..." type="any">
+  Any additional arguments (e.g., an `OPTS` struct or a time vector) are forwarded verbatim to the underlying `Exp` call.
+</ParamField>
+
+<ParamField path="Exp_left_FCN" type="function handle">
+  A pre-built left-invariant exponential function of the form `@(U0, T) Exp(...)`. When provided as the **second** argument, `matBases` and `MetricTensor` are not required. When provided as the **third** argument, the second argument is interpreted as a time vector `T`.
+</ParamField>
+
+<ParamField path="T" type="double (vector)">
+  Time vector passed to `Exp_left_FCN` when using the function-handle form `Expr(U0, T, Exp_left_FCN)`.
+</ParamField>
+
+## Return values
+
+<ResponseField name="Q1" type="double (n×n or n×n×T)">
+  Right-invariant Riemannian exponential of `U0`. Computed as `inv(Exp(-U0))`, so each slice satisfies `Q1(:,:,k) = inv(Exp_left(-U0, T(k)))`.
+</ResponseField>
+
+<ResponseField name="U1" type="double (n×n or n×n×T)">
+  Velocity in the Lie algebra at the endpoint(s), negated from the underlying left-invariant result: `U1 = -Ut`.
+</ResponseField>
+
+## Behavior notes
+
+<Note>
+  `Expr` implements the identity
+
+  ```
+  Expr_right(U0) = inv( Exp_left(-U0) )
+  ```
+
+  This conjugation converts the right-invariant problem into a left-invariant one, solved by `Exp`, and then inverts the result.
+</Note>
+
+<Tip>
+  When you already have a tuned left-invariant exponential function (e.g., with custom `OPTS`), pass it as a function handle to avoid duplicating configuration:
+
+  ```matlab
+  myExp = @(U, T) Exp( U , matBases , MetricTensor , struct('TOLERANCE',1e-12,'T',T) );
+  [Q1, U1] = Expr( U0 , myExp );
+  ```
+</Tip>
+
+<Warning>
+  The result of `Expr` is the **matrix inverse** of an `Exp` output. For large matrices or ill-conditioned groups, the `inv()` call may amplify numerical errors. Consider using `mldivide` or a group-specific projection if precision is critical.
+</Warning>
+
+## Relationship to Exp
+
+The three call forms map to `Exp` as follows:
+
+| `Expr` call | Equivalent computation |
+|---|---|
+| `Expr(U0, B, M)` | `inv(Exp(-U0, B, M))` |
+| `Expr(U0, B, M, OPTS)` | `inv(Exp(-U0, B, M, OPTS))` |
+| `Expr(U0, FCN)` | `inv(FCN(-U0, 1))` |
+| `Expr(U0, T, FCN)` | `inv(FCN(-U0, T))` |
+
+## Examples
+
+### Right-invariant exponential via matBases
+
+```matlab
+matBases     = [ 1 0 0 0 ; 0 0 1 0 ].';
+MetricTensor = eye(2);
+U0 = [-0.5 1.2; 0 0];
+
+[Q1, U1] = Expr( U0 , matBases , MetricTensor );
+```
+
+### Verify right-invariance
+
+```matlab
+Q0 = [1 2; 0 1];
+V0 = [-2 5; 0 0];
+
+[Q1, ~] = Expr( V0 * inv(Q0) , matBases , MetricTensor );
+Q1 = Q1 * Q0;
+
+% Should match the exponential started from Q0:
+[Q1_ref, ~] = Expr( V0 , matBases , MetricTensor );
+max( abs( Q1(:) - Q1_ref(:) ) )   % near machine epsilon
+```
+
+### Using a pre-built function handle
+
+```matlab
+myExp = @(U0, T) Exp( U0 , matBases , MetricTensor , T );
+[Q1, U1] = Expr( U0 , myExp );
+```
+
+### Sampling at multiple times with a function handle
+
+```matlab
+TIMES = linspace(0, 1, 20);
+[Qt, Ut] = Expr( U0 , TIMES , myExp );
+% Qt is n×n×20
+```

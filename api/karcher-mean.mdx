@@ -1,0 +1,152 @@
+---
+title: 'KarcherMean'
+description: 'Compute the Fréchet (Karcher) mean of a set of Lie group elements using gradient descent with line search.'
+---
+
+`KarcherMean` computes the Fréchet mean (also called the Karcher mean or Riemannian center of mass) of a set of group elements `Xs` with respect to the geodesic distance induced by a given Exp/Log pair. Weighted means are supported, and both left- and right-invariant geometries are handled.
+
+## Signature
+
+```matlab
+[M, E] = KarcherMean(Xs, M0, EXP_fun, LOG_fun)
+[M, E] = KarcherMean(Xs, M0, EXP_fun, LOG_fun, invariance)
+[M, E] = KarcherMean(Xs, EXP_fun, LOG_fun)
+[M, E] = KarcherMean(Xs, EXP_fun, LOG_fun, invariance)
+```
+
+## Parameters
+
+<ParamField path="Xs" type="double array | cell array" required>
+  The input data, in one of two formats:
+
+  **Simple array**: An n×n×N array of N group elements stacked along the third dimension.
+
+  **Weighted cell array**: A 1×2 cell `{X_array, W}` where:
+  - `X_array` is an n×n×N array of group elements
+  - `W` is an N×1 vector of non-negative weights
+
+  Elements with zero or non-finite weights are automatically excluded from the computation.
+</ParamField>
+
+<ParamField path="M0" type="double matrix">
+  An n×n initial estimate for the mean. Pass `[]` to let the function choose the initial estimate automatically:
+  - If all weights are equal, an incremental mean is computed: starting from `Xs(:,:,1)`, each element is incorporated one at a time using the geodesic midpoint.
+  - If weights differ, the element with the highest weight is used as the starting point.
+
+  If `M0` contains non-finite values or has non-positive determinant, it is treated as `[]`.
+
+  **This argument may be omitted entirely** (3-argument form), in which case `EXP_fun` is interpreted as `M0`.
+</ParamField>
+
+<ParamField path="EXP_fun" type="function handle" required>
+  The group exponential map. Called as `EXP_fun(U)` where `U` is a Lie algebra element (tangent vector at the identity). Must return an n×n group element.
+</ParamField>
+
+<ParamField path="LOG_fun" type="function handle" required>
+  The group logarithm map. Called as `LOG_fun(Q)` with signature `[d, U] = LOG_fun(Q)`, returning the geodesic distance `d` and the Lie algebra element `U` at the identity.
+</ParamField>
+
+<ParamField path="invariance" type="string" default="'L'">
+  Specifies whether the geometry is left- or right-invariant:
+  - `'L'` (default): left-invariant. Uses `Q_mean \ Q_i` for the LOG call.
+  - `'R'`: right-invariant. Uses `Q_i / Q_mean` for the LOG call.
+</ParamField>
+
+## Return values
+
+<ResponseField name="M" type="double matrix">
+  The n×n group element that minimizes the sum of squared geodesic distances:
+  $$M^* = \arg\min_M \sum_{i=1}^N w_i\, d(M, X_i)^2$$
+</ResponseField>
+
+<ResponseField name="E" type="double">
+  The value of the objective (weighted sum of squared distances) at the converged mean.
+</ResponseField>
+
+## Algorithm
+
+The function implements a gradient-descent algorithm with backtracking and exploration line search:
+
+1. **Initialization**: Compute the initial mean `M0` (or use the user-supplied one).
+2. **Gradient step**: Compute the Riemannian gradient as the weighted mean of the log-mapped tangent vectors:
+   $$G = \frac{2}{\sum w_i} \sum_{i=1}^N w_i\, \log_M(X_i)$$
+3. **Backtracking line search**: Reduce step size `α` until the energy decreases.
+4. **Exploration line search**: Once a decreasing direction is found, double `α` to find a larger step.
+5. **Termination**: Stop when `M` no longer changes.
+
+<Tip>
+Providing a good initial estimate `M0` (e.g. one of the data points, or a rough arithmetic mean) can significantly speed up convergence. For small datasets, the automatic initialization is usually adequate.
+</Tip>
+
+<Note>
+The converged result is a local minimum of the Fréchet variance. For groups with positive curvature or widely-spread data, there may be multiple local minima. The result depends on the initialization.
+</Note>
+
+## Examples
+
+### SO(3) mean (uniform weights)
+
+```matlab
+% Generate 5 random rotation matrices near identity
+Us = 0.3 * randn(3, 3, 5);
+Us = (Us - permute(Us, [2,1,3])) / 2;  % make skew-symmetric
+Xs = zeros(3, 3, 5);
+for i = 1:5
+    Xs(:,:,i) = expm(Us(:,:,i));
+end
+
+M = KarcherMean(Xs, [], @Exp_SO, @Log_SO);
+```
+
+### SE(2) mean with an initial guess
+
+```matlab
+M = KarcherMean(Xs, Xs(:,:,1), @Exp_SE, @Log_SE, 'L');
+```
+
+### Weighted mean
+
+```matlab
+W = [1, 2, 1, 3, 1];   % relative weights
+M = KarcherMean({Xs, W}, [], @Exp_SO, @Log_SO);
+```
+
+### Right-invariant geometry
+
+```matlab
+M = KarcherMean(Xs, [], @Exp_SE, @Log_SEr, 'R');
+```
+
+### 3-argument form (omit M0)
+
+```matlab
+M = KarcherMean(Xs, @Exp_SO, @Log_SO);
+```
+
+### Retrieve energy
+
+```matlab
+[M, E] = KarcherMean(Xs, [], @Exp_SIM, @Log_SIM);
+fprintf('Fréchet variance: %g\n', E);
+```
+
+<AccordionGroup>
+  <Accordion title="Why does the result depend on the initial estimate?">
+    The Fréchet mean minimization is a non-convex optimization on a curved manifold. For data spread across more than a hemisphere (in SO(3)) or with large geodesic variance, multiple local minima can exist. Starting from different initial points may yield different local optima.
+  </Accordion>
+  <Accordion title="What does invariance 'L' vs 'R' mean in practice?">
+    Left-invariant geometry means that distances are unchanged when all group elements are multiplied on the left by a fixed group element. Right-invariant means invariance under right multiplication. The choice must match the Log function used: `Log_SE` is left-invariant, `Log_SEr` is right-invariant.
+  </Accordion>
+  <Accordion title="How are zero-weight or NaN-weight elements handled?">
+    Elements with weight zero, negative weight, or non-finite weight are silently removed before the computation begins. This allows passing sparse weight vectors without manually filtering the data.
+  </Accordion>
+</AccordionGroup>
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `GeodesicRegression` | Geodesic regression (generalization of mean to regression) |
+| `Log_SO` | Logarithm for SO(n), usable as `LOG_fun` |
+| `Log_SE` | Logarithm for SE(n), left-invariant |
+| `Log_SIM` | Logarithm for SIM(n) |

@@ -1,0 +1,218 @@
+---
+title: 'Custom Lie groups with LIEbasis'
+description: 'How to define a custom matrix Lie group and use it with the generic Exp/Log integration engine via LIEbasis.'
+---
+
+`LIEbasis` is the entry point for working with groups that do not have a dedicated closed-form implementation. It returns an `(n²)×k` matrix whose columns are the vectorised basis elements of a Lie algebra, ready to pass directly to `Exp`, `KarcherMean`, and `GeodesicRegression`.
+
+## What LIEbasis returns
+
+For an `n×n` matrix group with a `k`-dimensional Lie algebra, `LIEbasis` returns:
+
+- **`B`** — an `(n²)×k` matrix. Column `j` is `reshape(Bj, [n*n, 1])` where `Bj` is the `j`-th basis matrix.
+- **`m`** *(optional)* — a `k×k` metric tensor on the algebra, derived from a supplied metric `m` after orthogonalising the basis.
+
+## Built-in groups
+
+Call `LIEbasis` with a string identifier. The following groups are supported:
+
+| String | Group |
+|---|---|
+| `'t(n)'` | Pure translations in R^n |
+| `'s(n)'` | Diagonal scalings in R^n |
+| `'s+t(n)'` | Scalings + translations (affine diagonal) |
+| `'st(n)'` | Similarity translations: uniform scale + translations |
+| `'so(n)'` | Special orthogonal group SO(n) |
+| `'so*s(n)'` | SO(n) × uniform scale |
+| `'so*t(n)'` | SE(n) (rotations + translations) via direct product |
+| `'so*s*t(n)'` | SIM(n) (rotations + scale + translations) via direct product |
+| `'s*so*t(n)'` | SIM(n) with scale first |
+| `'se(n)'` | Special Euclidean group SE(n) |
+| `'sim(n)'` | Similarity group SIM(n) |
+| `'sl(n)'` | Special linear group SL(n) |
+| `'sa(n)'` | Special affine group SA(n) |
+| `'gl(n)'` | General linear group GL(n) |
+| `'ga(n)'` | General affine group GA(n) |
+| `'mo(n)'` | Möbius group (2D conformal) |
+
+```matlab
+B = LIEbasis('se(2)');
+```
+
+<Note>
+The string matching is case-insensitive and the dimension `n` must be a positive integer. For example, `'SE(3)'`, `'se(3)'`, and `'Se(3)'` are all equivalent.
+</Note>
+
+---
+
+## Using a built-in basis with the generic Exp
+
+<Steps>
+  <Step title="Obtain the basis">
+    ```matlab
+    B  = LIEbasis('se(2)');       % 9×3 matrix for SE(2)
+    MT = eye( size(B, 2) );       % identity metric on the 3-dimensional algebra
+    ```
+  </Step>
+
+  <Step title="Build a Lie-algebra velocity matrix">
+    An SE(2) element has a 2×2 skew-symmetric rotation block and a 2×1 translation column:
+
+    ```matlab
+    theta = 0.3;   tx = 1.0;   ty = -0.5;
+    U0 = [ 0, -theta, tx ;
+           theta,  0, ty ;
+           0,      0,  0 ];
+    ```
+  </Step>
+
+  <Step title="Compute the geodesic">
+    ```matlab
+    Q1 = Exp( U0, B, MT );        % endpoint at t=1
+    Qt = Exp( U0, B, MT, linspace(0,1,50) );  % path
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Supplying a custom metric tensor
+
+A non-identity metric tensor assigns different weights to each algebra direction. Pass it as a second argument to `LIEbasis` (two-output form) to get an orthogonalised basis and the transformed metric:
+
+```matlab
+B_raw = LIEbasis('sim(2)');
+K     = size(B_raw, 2);          % dimension of the algebra
+
+% Define a metric that upweights the scale direction (index 1)
+m = eye(K);
+m(1,1) = 10;
+
+% Orthogonalise the basis and transform the metric accordingly
+[B, m_transformed] = LIEbasis( B_raw, m );
+% B is now a QR-orthogonalised basis; m_transformed == eye(K)
+```
+
+The returned `B` satisfies `B.'*B == eye(K)` (orthonormal columns in the Frobenius sense), and the original metric information is absorbed into the column scaling.
+
+---
+
+## Defining a fully custom Lie group
+
+If your group is not in the built-in list, pass a **cell array of basis matrices** directly. `LIEbasis` will validate the input and return the stacked column matrix.
+
+<Steps>
+  <Step title="Write down the algebra basis matrices">
+    Each basis matrix must be an `n×n` matrix. Together they must span the Lie algebra and be linearly independent.
+
+    ```matlab
+    % Example: 2×2 upper-triangular matrices with trace zero
+    % Algebra basis: { [1,0;0,-1], [0,1;0,0] }
+    B1 = [ 1,  0 ;  0, -1 ];
+    B2 = [ 0,  1 ;  0,  0 ];
+    ```
+  </Step>
+
+  <Step title="Call LIEbasis with a cell array">
+    ```matlab
+    B = LIEbasis( {B1, B2} );
+    % B is a 4×2 matrix (vectorised columns)
+    ```
+
+    `LIEbasis` checks that:
+    - All matrices are square.
+    - The columns of `B` are linearly independent (rank check).
+    - Every Lie bracket `[Bi, Bj] = Bi*Bj - Bj*Bi` lies in the span of `B` (closure under the bracket).
+  </Step>
+
+  <Step title="Specify the metric tensor">
+    ```matlab
+    MT = eye( size(B, 2) );   % isotropic metric
+    ```
+  </Step>
+
+  <Step title="Compute geodesics">
+    ```matlab
+    % Build a velocity in the algebra
+    c  = [0.5; 1.2];           % coordinates in the basis
+    U0 = reshape( B * c, [2, 2] );
+
+    Q1 = Exp( U0, B, MT );
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+If the commutator `[Bi, Bj]` is not in the span of the provided basis, `LIEbasis` raises an error: `basis i and j generate a new independent algebra`. You must add the missing basis elements.
+</Warning>
+
+---
+
+## Using LIEbasis with KarcherMean and GeodesicRegression
+
+Once you have a basis `B` and metric `MT`, plug them into the full analysis pipeline:
+
+```matlab
+B  = LIEbasis('sl(2)');
+MT = eye( size(B, 2) );
+
+% Wrap Exp for use with KarcherMean / GeodesicRegression
+EXP = @(U)       Exp( U, B, MT );
+LOG = @(Q)  Log_SL2( Q );         % your own Log implementation
+
+% Karcher mean
+M = KarcherMean( Xs, EXP, LOG, 'L' );
+
+% Geodesic regression
+[Y0, V0, E] = GeodesicRegression( Ts, Ys, [], EXP, LOG, B );
+```
+
+<Tip>
+For groups where a closed-form logarithm is not available, you can approximate `Log` via the inverse of `Exp` using a shooting method — iteratively adjust `U` until `Exp(U) ≈ Q`.
+</Tip>
+
+---
+
+## Orthogonalising an existing basis
+
+The two-output form `[B, m] = LIEbasis(B_in)` also accepts an already-stacked `(n²)×k` matrix and orthogonalises it:
+
+```matlab
+B_raw = LIEbasis('so(3)');        % 9×3 original basis
+[B_orth, ~] = LIEbasis( B_raw ); % orthonormalised
+
+% Verify orthonormality
+disp( B_orth.' * B_orth );        % should be close to eye(3)
+```
+
+This is useful when you want numerical stability in the `Exp` integrator, since an ill-conditioned basis can degrade the quality of the CHI operator used internally.
+
+---
+
+## Reference: pre-built basis variables
+
+The following hard-coded basis matrices (from the `Exp.m` comments) can also be used directly without calling `LIEbasis`:
+
+<CodeGroup>
+
+```matlab 2D groups
+matBases_SO2  = [0;1;-1;0];
+matBases_SE2  = [zeros(1,3);1,0,0;zeros(1,3);-1,0,0;zeros(1,3);zeros(1,3);0,1,0;0,0,1;zeros(1,3)];
+matBases_SIM2 = [1,0,0,0;0,1,0,0;zeros(1,4);0,-1,0,0;1,0,0,0;zeros(1,4);0,0,1,0;0,0,0,1;zeros(1,4)];
+matBases_ST1  = [1,0;zeros(1,2);0,1;zeros(1,2)];
+matBases_ST2  = [1,0,0;zeros(1,3);zeros(1,3);zeros(1,3);1,0,0;zeros(1,3);0,1,0;0,0,1;zeros(1,3)];
+matBases_GL2  = eye([4,4]);
+matBases_SL2  = [1,0,0;0,1,0;0,0,1;-1,-0,-0];
+```
+
+```matlab 3D groups
+matBases_SO3  = [zeros(1,3);1,0,0;0,1,0;-1,0,0;zeros(1,3);0,0,1;0,-1,0;0,0,-1;zeros(1,3)];
+matBases_SE3  = [zeros(1,6);1,0,0,0,0,0;0,1,0,0,0,0;zeros(1,6);-1,0,0,0,0,0;zeros(1,6);0,0,1,0,0,0;zeros(1,6);0,-1,0,0,0,0;0,0,-1,0,0,0;zeros(1,6);zeros(1,6);0,0,0,1,0,0;0,0,0,0,1,0;0,0,0,0,0,1;zeros(1,6)];
+matBases_SIM3 = [1,0,0,0,0,0,0;0,1,0,0,0,0,0;0,0,1,0,0,0,0;zeros(1,7);0,-1,0,0,0,0,0;1,0,0,0,0,0,0;0,0,0,1,0,0,0;zeros(1,7);0,0,-1,0,0,0,0;0,0,0,-1,0,0,0;1,0,0,0,0,0,0;zeros(1,7);0,0,0,0,1,0,0;0,0,0,0,0,1,0;0,0,0,0,0,0,1;zeros(1,7)];
+matBases_GL3  = eye([9,9]);
+matBases_SL3  = [1,0,0,0,0,0,0,0;0,1,0,0,0,0,0,0;0,0,1,0,0,0,0,0;0,0,0,1,0,0,0,0;0,0,0,0,1,0,0,0;0,0,0,0,0,1,0,0;zeros(1,6),1,0;zeros(1,7),1;-1,-0,-0,-0,-1,-0,-0,-0];
+```
+
+</CodeGroup>
+
+These can be passed directly as the `B` argument to `Exp`, `KarcherMean`, and `GeodesicRegression`.

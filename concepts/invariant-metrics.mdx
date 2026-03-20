@@ -1,0 +1,160 @@
+---
+title: "Invariant Riemannian metrics"
+description: "How left- and right-invariant Riemannian metrics are defined on matrix Lie groups, what the metric tensor represents, and how it affects geodesic shape."
+keywords: ["Riemannian metric", "left-invariant", "right-invariant", "metric tensor", "Lie group", "geodesic"]
+---
+
+A **Riemannian metric** on a manifold assigns an inner product to the tangent space at every point. On a Lie group, you can define such a metric in a way that is consistent with the group structure — either **left-invariant** or **right-invariant** — by specifying it once on the Lie algebra and then translating it to every other point.
+
+This is exactly the approach LIgeodesics uses: you supply a `k×k` **metric tensor** `M` that defines the inner product on the Lie algebra, and the toolbox computes geodesics under the corresponding invariant metric everywhere on the group.
+
+## Inner product on the Lie algebra
+
+Let `g` be the Lie algebra of a group `G`, with basis `{B₁, …, Bₖ}`. Any element of `g` can be written as a linear combination
+
+```
+U = u₁ B₁ + u₂ B₂ + … + uₖ Bₖ
+```
+
+where `u = (u₁, …, uₖ)^T ∈ ℝᵏ` are the coordinates. The **metric tensor** `M` is a `k×k` symmetric positive-definite matrix that defines the inner product on `g` in these coordinates:
+
+```
+⟨U, V⟩ = u^T M v
+```
+
+The norm of a Lie algebra element (the "speed" of the corresponding geodesic) is therefore:
+
+```
+‖U‖ = sqrt( u^T M u )
+```
+
+<Note>
+The metric tensor `M` depends on the choice of basis `B`. If you change the basis, the tensor transforms accordingly. LIEbasis can orthogonalise the basis for a given metric tensor — see [Metric-adapted bases](#metric-adapted-bases) below.
+</Note>
+
+## Left-invariant metrics
+
+A metric on `G` is **left-invariant** if left-multiplication by any fixed group element `P ∈ G` is an isometry: distances and angles are preserved when you multiply on the left.
+
+Formally, the metric at a point `Q ∈ G` is obtained by left-translating the algebra metric to the tangent space at `Q`:
+
+```
+⟨V, W⟩_Q = ⟨Q⁻¹V, Q⁻¹W⟩_I
+```
+
+where `I` is the identity element and the right-hand side uses the algebra metric `M`. The quantity `Q⁻¹V` is the **left-trivialized** velocity — an element of the Lie algebra.
+
+In LIgeodesics, all functions that lack an `r` suffix (`Exp`, `Log`, `Exp_SE`, `Log_SO`, …) work under the **left-invariant** metric. The Euler–Poincaré equations that govern the geodesics are derived from this left-trivialisation.
+
+## Right-invariant metrics
+
+A metric is **right-invariant** if right-multiplication by any fixed `P ∈ G` is an isometry:
+
+```
+⟨V, W⟩_Q = ⟨VQ⁻¹, WQ⁻¹⟩_I
+```
+
+The corresponding **right-trivialized** velocity is `VQ⁻¹`, again an element of the Lie algebra.
+
+Right-invariant geodesics can be computed with `Expr` and `Logr`, or the group-specific `Exp_SEr`, `Log_SEr`, `Exp_SIMr`, etc. Internally, `Expr` maps a right-invariant problem onto a left-invariant one via the inversion:
+
+```matlab
+% Right-invariant exponential on any group
+Exp_right = @(Q, V, B, M, varargin) ...
+    inv( Exp( inv(Q), -inv(Q)*V*inv(Q), B, M, varargin{:} ) );
+```
+
+## Why invariance matters
+
+Choosing an invariant metric has practical consequences:
+
+| Property | Left-invariant | Right-invariant |
+|---|---|---|
+| Geodesics from `I` | Determined entirely by initial velocity in `g` | Same |
+| Geodesics from arbitrary `Q` | Left-translate `I`-geodesic by `Q` | Right-translate `I`-geodesic by `Q` |
+| Symmetric space? | Only for bi-invariant metrics (e.g., SO(n) with Killing form) | Same |
+| Dependence on reference frame | Invariant to left-composition (global frame change) | Invariant to right-composition (local frame change) |
+
+<Info>
+For **SO(n)** with the standard metric `M = I`, the metric is actually **bi-invariant** (both left and right). Geodesics are one-parameter subgroups: `Q(t) = expm(U₀ t)`. For non-compact groups like SE(n) and SIM(n), left- and right-invariant geodesics are genuinely different curves.
+</Info>
+
+## The metric tensor in practice
+
+### Identity metric
+
+The simplest choice is `M = eye(k)`. In the standard basis returned by `LIEbasis`, this weights all generators equally:
+
+```matlab
+B = LIEbasis('se(2)');   % k = 3
+M = eye(3);               % equal weight on rotation and two translations
+```
+
+### Diagonal metric
+
+A diagonal metric lets you weight different types of motion independently:
+
+```matlab
+B = LIEbasis('se(3)');   % k = 6: 3 rotations, 3 translations
+M = diag([1, 1, 1, alpha, alpha, alpha]);
+```
+
+Here `alpha` controls the relative cost of translation versus rotation. A large `alpha` makes translations expensive, so geodesics will prefer to rotate.
+
+<Tip>
+The geodesic shape is invariant to overall scaling of `M` — only the **ratios** between entries matter. Multiplying `M` by a constant scalar changes the metric scale but not the path.
+</Tip>
+
+### General positive-definite metric
+
+Any symmetric positive-definite `k×k` matrix is a valid metric tensor. For example, a learned or estimated metric from data:
+
+```matlab
+B = LIEbasis('sim(2)');  % k = 4
+% M from, e.g., covariance of observed transformations:
+M = inv(CovMatrix);       % must be SPD
+Q1 = Exp(U0, B, M);
+```
+
+## Metric-adapted bases
+
+`LIEbasis` can orthonormalise the basis with respect to a given metric tensor, so that the metric tensor in the new basis is the identity:
+
+```matlab
+B  = LIEbasis('se(2)');
+M  = diag([1, 1, 4]);       % non-trivial metric
+
+% Orthonormalise: B2 satisfies  pinv(B2)'*pinv(B2) ≈ M in the original basis
+B2 = LIEbasis(B, M);
+M2 = eye(3);                % metric tensor in the new basis is the identity
+
+Q1_orig = Exp(U0,  B,  M );
+Q1_new  = Exp(U0_, B2, M2);  % equivalent if U0_ = B2*(B\U0(:))
+```
+
+This is useful when you want to work with an orthonormal frame, or when you want to use identity-metric functions for efficiency.
+
+## The operators sigma and chi
+
+Internally, `Exp` constructs two linear operators on `ℝⁿˣⁿ` from the basis `B` and metric tensor `M`:
+
+- **sigma** (`Σ`): maps a matrix to the algebra component of its metric-dual — `Σ = B M⁻¹ Bᵀ`
+- **chi** (`χ`): the metric-dual map on algebra coordinates — `χ = Bᵀ M B` (in pseudo-inverse sense)
+
+These appear in the Euler–Poincaré ODE that governs how the velocity `U(t)` evolves along the geodesic (see [Geodesics](/concepts/geodesics)).
+
+## Conserved quantities
+
+Under a left-invariant metric, geodesics conserve two scalar quantities:
+
+- **Energy** `E = ⟨U(t), U(t)⟩ = u(t)^T M u(t)` — the squared norm of the left-trivialized velocity. For a geodesic, this is constant; the speed does not change.
+- **Momentum** `S = Σ(Q(t)^T χ(U(t)) Q(t)^T)` — the "body-frame" momentum, which is also conserved.
+
+`Exp` monitors both quantities during integration and uses adaptive step-size control to keep their drift below the tolerances `THRESHOLD_E` and `THRESHOLD_S`.
+
+## Further reading
+
+- [Matrix Lie groups](/concepts/lie-groups) — how groups and their algebras are defined
+- [Geodesics](/concepts/geodesics) — computing geodesics under invariant metrics
+- [`Exp` API reference](/api/exp) — generic left-invariant exponential
+- [`Expr` API reference](/api/expr) — right-invariant exponential

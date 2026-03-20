@@ -1,0 +1,167 @@
+---
+title: 'Fréchet / Karcher mean'
+description: 'How to compute the Fréchet mean (Karcher mean) of a set of Lie-group-valued observations using KarcherMean.'
+---
+
+The **Fréchet mean** (also called the Karcher mean in the Lie-group setting) minimises the sum of squared geodesic distances to a set of observations:
+
+$$
+M^* = \operatorname*{arg\,min}_{M} \sum_{i=1}^{N} w_i \, d(M, X_i)^2
+$$
+
+`KarcherMean` solves this via a gradient-descent / backtracking line-search directly on the group manifold.
+
+## Signature
+
+```matlab
+M           = KarcherMean( Xs, M0,  EXP_fun, LOG_fun )
+M           = KarcherMean( Xs, M0,  EXP_fun, LOG_fun, invariance )
+[M, E]      = KarcherMean( Xs, EXP_fun, LOG_fun )           % M0 omitted
+[M, E]      = KarcherMean( Xs, EXP_fun, LOG_fun, invariance )
+```
+
+| Argument | Description |
+|---|---|
+| `Xs` | `n×n×N` array of N group elements, **or** a 2-element cell `{Xs, weights}` where `weights` is an N-vector of non-negative scalars. |
+| `M0` | Initial guess for the mean (`n×n` matrix). Pass `[]` to auto-initialise. |
+| `EXP_fun` | `@(U)` — the Riemannian exponential **at the identity**. Returns a group element. |
+| `LOG_fun` | `@(Q)` — the Riemannian logarithm **at the identity**. Returns `[dist, U]`. |
+| `invariance` | `'L'` (left-invariant, default) or `'R'` (right-invariant). |
+
+The function returns the estimated mean `M` and the final energy value `E`.
+
+<Note>
+When `M0` is omitted entirely (three-argument form), the function auto-initialises using a sequential averaging scheme, which is a good starting point for uniformly weighted data.
+</Note>
+
+---
+
+## Internalising invariance
+
+`KarcherMean` wraps your `EXP_fun` and `LOG_fun` internally to handle the group action. You provide exponential and logarithm **at the identity**; the function handles the left- or right-transport automatically.
+
+<Tabs>
+  <Tab title="Left-invariant">
+The internal update step for left-invariant metrics:
+
+- `LOG`: compute `LOG_fun( M \ X )`, then left-multiply the result by `M`.
+- `EXP`: compute `M * EXP_fun( M \ gradient_step )`.
+
+```matlab
+[M, E] = KarcherMean( Xs, [], @Exp_SE_id, @Log_SE_id, 'L' );
+```
+  </Tab>
+  <Tab title="Right-invariant">
+The internal update step for right-invariant metrics:
+
+- `LOG`: compute `LOG_fun( X / M )`, then right-multiply the result by `M`.
+- `EXP`: compute `EXP_fun( gradient_step / M ) * M`.
+
+```matlab
+[M, E] = KarcherMean( Xs, [], @Exp_SE_id, @Log_SE_id, 'R' );
+```
+  </Tab>
+</Tabs>
+
+---
+
+## Example — SE(2) mean
+
+```matlab
+% Generate synthetic SE(2) observations around a known mean
+U_true = [ 0, -0.4, 0.5 ;    % se(2) algebra element
+            0.4,  0, 1.2 ;
+            0,    0, 0   ];
+
+N  = 30;
+Xs = zeros(3, 3, N);
+for i = 1:N
+    noise = 0.05 * randn(1);
+    U_i   = U_true + [ 0, -noise, 0 ; noise, 0, 0 ; 0, 0, 0 ];
+    Xs(:,:,i) = Exp_SE( U_i );
+end
+
+% Define Exp/Log at identity for SE(2)
+EXP_fun = @(U) Exp_SE( U );
+LOG_fun = @(Q) Log_SE( Q );   % returns [dist, U]
+
+% Compute the Karcher mean (auto-initialised, left-invariant)
+[M, E] = KarcherMean( Xs, EXP_fun, LOG_fun );
+
+fprintf('Final energy: %g\n', E);
+```
+
+---
+
+## Example — weighted mean
+
+Pass observations and weights as a cell array `{Xs, weights}`:
+
+```matlab
+weights = rand(N, 1);
+[M, E]  = KarcherMean( {Xs, weights}, EXP_fun, LOG_fun );
+```
+
+Observations with `weight == 0` or non-finite weight are silently ignored.
+
+---
+
+## Example — using the generic Exp with a custom metric
+
+When no closed-form exponential exists, use the generic `Exp` together with a matching `Log`:
+
+```matlab
+B  = LIEbasis('se(2)');
+MT = eye( size(B, 2) );   % identity metric on the algebra
+
+% Wrap Exp and Log for use with KarcherMean
+EXP_fun = @(U)       Exp( U, B, MT );
+LOG_fun = @(Q)  deal( norm(Q(:)), ... % distance placeholder
+                      reshape( B * (pinv(B) * Q(:)) , size(Q)) );
+
+[M, E] = KarcherMean( Xs, EXP_fun, LOG_fun, 'L' );
+```
+
+<Tip>
+For best results, supply a good initial guess `M0` (e.g. a member of your dataset, or a rough Euclidean mean). Poor initialisation can cause the gradient descent to converge to a local minimum.
+</Tip>
+
+---
+
+## Providing an initial estimate
+
+<Steps>
+  <Step title="Choose a starting point">
+    Pass any group element as the initial guess `M0`. A member of the dataset often works well:
+
+    ```matlab
+    M0 = Xs(:,:,1);
+    ```
+  </Step>
+
+  <Step title="Run the mean computation">
+    ```matlab
+    [M, E] = KarcherMean( Xs, M0, EXP_fun, LOG_fun );
+    ```
+  </Step>
+
+  <Step title="Check convergence">
+    Inspect the returned energy `E`. If it is unexpectedly high, try a different starting point or verify that your `EXP_fun` / `LOG_fun` pair is consistent.
+
+    ```matlab
+    fprintf('Karcher mean energy: %.6g\n', E);
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Algorithmic notes
+
+- The solver uses a **gradient descent with backtracking line search**, followed by an extrapolation step that attempts to overshoot the optimum.
+- Convergence is detected when successive iterates are identical (up to floating-point), not by a gradient-norm threshold. For ill-conditioned problems, the iteration may stall before reaching full accuracy.
+- Observations with non-finite or zero weights are excluded before optimisation begins.
+
+<Warning>
+The Karcher mean is only guaranteed to be unique when all observations lie within a **geodesically convex** neighbourhood of the mean (roughly, within a ball of radius less than the injectivity radius). For widely dispersed data the algorithm may converge to a local minimum.
+</Warning>

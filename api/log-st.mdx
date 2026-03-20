@@ -1,0 +1,142 @@
+---
+title: 'Log_ST / Log_ST1'
+description: 'Riemannian logarithm on the scaling-translation group ST(n).'
+---
+
+The scaling-translation group ST(n) consists of isotropic scalings combined with translations. Elements are represented as (n+1)×(n+1) homogeneous matrices:
+
+$$Q = \begin{bmatrix} sI_n & t \\ 0 & 1 \end{bmatrix}, \quad s > 0,\ t \in \mathbb{R}^n$$
+
+Two variants are provided: the standard logarithm `Log_ST` and the metric-aware version `Log_ST1`.
+
+<Tabs>
+  <Tab title="Log_ST">
+
+## Signature
+
+```matlab
+[dist, U] = Log_ST(Q)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An (n+1)×(n+1) homogeneous ST(n) matrix. Must be of the exact form `[s*eye(n), t; zeros(1,n), 1]` with `s > 0`. Both structure and positivity are validated.
+</ParamField>
+
+## Return values
+
+<ResponseField name="dist" type="double">
+  Geodesic distance on ST(n), computed via:
+  $$d = \cosh^{-1}\!\left(1 + \frac{\|t\|^2 + (s-1)^2}{2s}\right)$$
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Lie algebra element in st(n), an (n+1)×(n+1) matrix. When the translation is non-zero, the logarithm is computed using the hyperbolic geometry of ST(n) and normalized to have norm equal to `dist`. When `t == 0`, the result reduces to the pure scaling logarithm `diag(log(s), …, log(s), 0)`.
+</ResponseField>
+
+## Details
+
+The geodesic on ST(n) lives in the hyperbolic space H^(n+1). When `‖t‖ ≠ 0`:
+
+$$c = \frac{\|t\|^2 + s^2 - 1}{2\|t\|}$$
+
+The direction vector `v = [c; t/‖t‖]` is then normalized to have norm `dist`.
+
+  </Tab>
+  <Tab title="Log_ST1">
+
+## Signature
+
+```matlab
+[dist, U] = Log_ST1(Q)
+[dist, U] = Log_ST1(Q, M)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  A 2×2 homogeneous ST(1) matrix of the form `[s, t; 0, 1]` with `s > 0`.
+</ParamField>
+
+<ParamField path="M" type="double matrix">
+  A 2×2 symmetric positive-definite metric matrix. Defaults to `eye(2)` if omitted or empty. Must satisfy `M == M'` (tolerance 1e-10).
+</ParamField>
+
+## Return values
+
+<ResponseField name="dist" type="double">
+  Geodesic distance measured using the custom metric `M`:
+  $$d = \sqrt{u^\top [e_1, e_3]^\top M [e_1, e_3]\, u}$$
+  where `u = U(:)` and `[e_1, e_3]` selects the `(1,1)` and `(1,2)` components.
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Metric-adjusted Lie algebra element. Computed by conjugating `Q` with the matrix `Y = [s0, t0; 0, 1]` derived from `M`, calling `Log_ST`, then pulling back.
+</ResponseField>
+
+## Details
+
+`Log_ST1` enables a non-standard metric on ST(1) through conjugation. The metric matrix `M` is decomposed as:
+
+$$s_0 = \frac{\sqrt{\det(M)}}{M_{22}}, \quad t_0 = \frac{M_{12}}{M_{22}}$$
+
+The group element is conjugated: `Q_c = iY * Q * Y`, the standard `Log_ST` is applied, and the result is conjugated back: `U = Y * U_c * iY`.
+
+  </Tab>
+</Tabs>
+
+<Warning>
+The scale `s` must be strictly positive. Passing `s ≤ 0` raises an error. Both functions also require the exact block structure of the ST(n) matrix; extra off-diagonal entries will cause an error.
+</Warning>
+
+<Note>
+`Log_ST1` is specifically designed for the 1D case (2×2 matrices). For general n, use `Log_ST`.
+</Note>
+
+## Examples
+
+### Pure scaling (n=2)
+
+```matlab
+Q = [2, 0, 0;
+     0, 2, 0;
+     0, 0, 1];    % scale=2, no translation
+
+[dist, U] = Log_ST(Q);
+% dist = log(2) ≈ 0.6931
+% U = diag(log(2), log(2), 0)
+```
+
+### Scaling with translation (n=2)
+
+```matlab
+s = 1.5;
+t = [1; 2];
+Q = [s*eye(2), t; 0, 0, 1];
+
+[dist, U] = Log_ST(Q);
+```
+
+### Custom metric in 1D
+
+```matlab
+Q = [2, 0.5; 0, 1];          % s=2, t=0.5 in ST(1)
+M = [1, 0.2; 0.2, 1];        % custom metric
+
+[dist, U] = Log_ST1(Q, M);
+```
+
+### Distance only
+
+```matlab
+dist = Log_ST(Q);   % U is not computed
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `Log_SIM` | Logarithm on SIM(n) (combines SO(n) and ST(n)) |
+| `Log_S` | Logarithm on the diagonal scaling group S(n) |
+| `LIEbasis('st(n)')` | Basis matrices for the st(n) Lie algebra |

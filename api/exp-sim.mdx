@@ -1,0 +1,152 @@
+---
+title: 'Exp_SIM / Exp_SIMr'
+description: 'Geodesic exponential map on the Similarity group SIM(n), left- and right-invariant variants.'
+keywords: ['SIM(n)', 'similarity group', 'scaling rotation translation', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  SIM(n) is the group of similarity transformations: uniform scaling, rotation, and translation in
+  n-dimensional space. It can be seen as a semidirect product of the Scaling-Translation group
+  ST(n) and SO(n). Its Lie algebra element has the block form
+  `[σI + ω, τ; 0, 0]`, where σ is the scalar log-scale rate, ω ∈ **so(n)**, and τ ∈ ℝⁿ.
+</Info>
+
+<Tabs>
+  <Tab title="Exp_SIM (left-invariant)">
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_SIM( U0 , time )
+```
+
+## Description
+
+Computes the **left-invariant** geodesic on SIM(n) starting at the identity.
+
+The geodesic is factored as a product of a scaling-translation geodesic and a rotation geodesic:
+
+$$
+Q(t) = Q_{\text{ST}}(t) \cdot \begin{bmatrix} R(t) & 0 \\ 0 & 1 \end{bmatrix}
+$$
+
+where:
+- $R(t) = \exp(\omega\, t)$ is computed via `Exp_SO`
+- $Q_{\text{ST}}(t)$ is computed via `Exp_ST` with the scaling-translation generator
+  `[σI, τ; 0, 0]`
+
+When `Ut` is requested, the left-invariant velocity is assembled from the time derivatives
+of both factors using the product rule.
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **sim(n)**: a (d+1)×(d+1) matrix of the form
+  `[σI + ω, τ; 0, 0]`, where `σ` is a scalar (uniform scale rate),
+  `ω` is d×d skew-symmetric, and `τ` is a d×1 translation velocity.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of SIM(n) group elements. Each slice combines the scaling-translation and rotation factors.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of left-invariant Lie algebra velocities. Assembled from the velocities of the
+  ST and SO sub-geodesics.
+</ResponseField>
+
+## Example
+
+```matlab
+% SIM(2): scale + rotation + translation
+sigma = 0.1;                       % log-scale rate
+omega2 = [0, -0.3; 0.3, 0];       % rotation part (skew-symmetric)
+tau2   = [0.5; 0.2];               % translation velocity
+
+d = 2;
+U0 = [sigma*eye(d) + omega2, tau2; zeros(1, d), 0];
+
+[Qt, Ut] = Exp_SIM(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % similarity transform at t = 1
+```
+
+  </Tab>
+  <Tab title="Exp_SIMr (right-invariant)">
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_SIMr( U0 , varargin )
+```
+
+## Description
+
+Computes the **right-invariant** geodesic on SIM(n) starting at the identity.
+
+`Exp_SIMr` is implemented in terms of `Exp_SIM` by negating the generator and then
+inverting the result:
+
+$$
+Q_r(t) = Q_l(-t)^{-1}, \qquad U_r(t) = -U_l(-t)
+$$
+
+This reflects the duality between left- and right-invariant geodesics.
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **sim(n)**: same structure as for `Exp_SIM`.
+</ParamField>
+
+<ParamField path="varargin" type="any">
+  Additional arguments forwarded to `Exp_SIM` (e.g., the `time` vector).
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of SIM(n) group elements for the right-invariant geodesic.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of right-invariant Lie algebra velocities.
+</ResponseField>
+
+## Example
+
+```matlab
+sigma = 0.1;
+omega2 = [0, -0.3; 0.3, 0];
+tau2   = [0.5; 0.2];
+
+d = 2;
+U0 = [sigma*eye(d) + omega2, tau2; zeros(1, d), 0];
+
+[Qt, Ut] = Exp_SIMr(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % right-invariant similarity transform at t = 1
+```
+
+  </Tab>
+</Tabs>
+
+## Notes
+
+- `Exp_SIM` delegates to [`Exp_SO`](/api/exp-so) for the rotation factor and
+  [`Exp_ST`](/api/exp-st) for the scaling-translation factor. It is **not** a direct matrix
+  exponential of the full generator.
+- `Exp_SIMr` is a thin wrapper that negates and inverts the `Exp_SIM` result.
+- Both functions accept arbitrary time vectors.
+
+## See also
+
+- [`Log_SIM`](/api/log-sim) — inverse map on SIM(n)
+- [`Exp_ST`](/api/exp-st) — scaling-translation exponential used internally
+- [`Exp_SO`](/api/exp-so) — rotation exponential used internally

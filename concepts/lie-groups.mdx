@@ -1,0 +1,172 @@
+---
+title: "Matrix Lie groups"
+description: "An introduction to the matrix Lie groups that LIgeodesics supports — what they are, how they are represented, and why they matter for spatial transformations."
+keywords: ["Lie group", "matrix group", "SO(n)", "SE(n)", "SIM(n)", "GL(n)", "Lie algebra"]
+---
+
+A **Lie group** is a group that is also a smooth manifold: you can multiply elements, take inverses, and move continuously between them. LIgeodesics works exclusively with **matrix Lie groups** — Lie groups whose elements are invertible square matrices and whose group operation is ordinary matrix multiplication.
+
+This page introduces the groups the toolbox supports, their matrix structure, and the Lie algebra machinery that underlies geodesic computation.
+
+## What is a matrix Lie group?
+
+A matrix Lie group `G ⊆ GL(n)` is a closed subgroup of the general linear group of invertible `n×n` real matrices. The group axioms are:
+
+| Property | Meaning |
+|---|---|
+| Closure | If `P, Q ∈ G`, then `PQ ∈ G` |
+| Identity | The identity matrix `I` belongs to `G` |
+| Inverse | If `Q ∈ G`, then `Q⁻¹ ∈ G` |
+| Associativity | Matrix multiplication is associative |
+
+Because the elements are matrices, the group is embedded in a Euclidean space of dimension `n²`, making it possible to do calculus on it.
+
+## The Lie algebra
+
+Every matrix Lie group has an associated **Lie algebra** `g = Lie(G)`, which is the tangent space at the identity. Concretely, `g` is a vector space of matrices closed under the **commutator bracket**:
+
+```
+[A, B] = AB - BA
+```
+
+Elements of `g` are called **infinitesimal generators**: integrating them (via the matrix exponential `expm`) produces group elements near the identity.
+
+<Info>
+In LIgeodesics, the Lie algebra is specified by a **basis matrix** `B` of size `(n²) × k`, where each column holds the vectorised form (`b(:)`) of one basis element. The integer `k` is the dimension of the group (the number of degrees of freedom).
+</Info>
+
+The `LIEbasis` function constructs this basis matrix for every supported group:
+
+```matlab
+% Basis for SO(3) — 3×3 skew-symmetric matrices, k=3
+B = LIEbasis('so(3)');
+
+% Basis for SE(2) — rigid motions in the plane, k=3
+B = LIEbasis('se(2)');
+
+% Basis for SIM(3) — 3-D similarity transforms, k=7
+B = LIEbasis('sim(3)');
+```
+
+You can also supply your own basis for a custom group — see [Custom Lie groups](/guides/custom-lie-group).
+
+## Structure constants
+
+The commutation relations between basis elements are encoded in the **structure constants tensor** `C`, a `k×k×k` array where:
+
+```
+[B_a, B_b] = sum_c  C(a, b, c) * B_c
+```
+
+This tensor appears in the geodesic ODE and determines how the metric "twists" as you move along a geodesic.
+
+```matlab
+B = LIEbasis('se(2)');
+C = StructureTensor(B);   % 3×3×3 array
+```
+
+## Supported groups
+
+LIgeodesics provides built-in bases and closed-form exponentials for the groups in the table below. The `dim` column is the number of free parameters (the dimension of the Lie algebra).
+
+| Group | Symbol | `LIEbasis` key | Matrix size | dim | Description |
+|---|---|---|---|---|---|
+| General linear | GL(n) | `'gl(n)'` | n×n | n² | All invertible matrices |
+| Special linear | SL(n) | `'sl(n)'` | n×n | n²−1 | Determinant-1 matrices |
+| Special orthogonal | SO(n) | `'so(n)'` | n×n | n(n−1)/2 | Rotation matrices |
+| Diagonal scaling | S(n) | `'s(n)'` | n×n | n | Positive diagonal matrices |
+| Translation | T(n) | `'t(n)'` | (n+1)×(n+1) | n | Pure translations |
+| Special Euclidean | SE(n) | `'se(n)'` | (n+1)×(n+1) | n(n−1)/2 + n | Rotations + translations |
+| Similarity | SIM(n) | `'sim(n)'` | (n+1)×(n+1) | n(n−1)/2 + n + 1 | Rotations + scaling + translations |
+| Scaling-translation | ST(n) | `'st(n)'` | (n+1)×(n+1) | n + 1 | Isotropic scaling + translations |
+| General affine | GA(n) | `'ga(n)'` | (n+1)×(n+1) | n(n+1) | All affine transformations |
+| Special affine | SA(n) | `'sa(n)'` | (n+1)×(n+1) | n²+n−1 | Affine with unit determinant |
+| Scaling+rotations | SO×S(n) | `'so*s(n)'` | n×n | n(n−1)/2 + 1 | Rotations + isotropic scaling |
+
+<Tip>
+For 2-D and 3-D spatial transformation problems, SE(2), SE(3), SIM(2), and SIM(3) are the most commonly used groups.
+</Tip>
+
+## Group representations as matrices
+
+### SO(n) — rotations
+
+Elements of SO(n) are `n×n` orthogonal matrices with determinant +1:
+
+```
+Q ∈ SO(n)  ⟺  Q^T Q = I,  det(Q) = +1
+```
+
+The Lie algebra `so(n)` consists of skew-symmetric matrices (`A^T = -A`). In 2-D, the single generator is:
+
+```
+B₁ = [  0  1 ]
+     [ -1  0 ]
+```
+
+which represents infinitesimal counter-clockwise rotation.
+
+### SE(n) — rigid body motions
+
+Elements of SE(n) are `(n+1)×(n+1)` homogeneous matrices:
+
+```
+Q = [ R  t ]
+    [ 0  1 ]
+```
+
+where `R ∈ SO(n)` is a rotation and `t ∈ ℝⁿ` is a translation. This representation lets you compose rigid motions by matrix multiplication.
+
+<Note>
+SE(n) is **not** a direct product of SO(n) and T(n): the translation part transforms under the rotation, which is why the group is non-abelian and why left- and right-invariant metrics differ. See [Invariant metrics](/concepts/invariant-metrics) for details.
+</Note>
+
+### SIM(n) — similarity transformations
+
+SIM(n) extends SE(n) with an isotropic (uniform) scale factor `s > 0`:
+
+```
+Q = [ e^σ R  t ]
+    [  0     1 ]
+```
+
+where `σ ∈ ℝ` is the log-scale. The Lie algebra element has the form:
+
+```
+U = [ σI + Ω  τ ]
+    [  0       0 ]
+```
+
+with `Ω` skew-symmetric, `τ ∈ ℝⁿ`, and `σ ∈ ℝ`. SIM(n) is especially useful in image registration when the overall image scale is unknown.
+
+### GL(n) — general linear group
+
+GL(n) contains all invertible `n×n` matrices. Its Lie algebra is the full space of `n×n` matrices `gl(n)`, with basis `{E_ij}` (standard matrix units). Because `k = n²`, geodesics on GL(n) are the most general and the most expensive to compute.
+
+## How the toolbox uses these groups
+
+All toolbox functions operate on the Lie algebra, not directly on the group. The typical workflow is:
+
+1. **Specify the group** — obtain a basis `B = LIEbasis('se(2)')` and choose a metric tensor `M` (see [Invariant metrics](/concepts/invariant-metrics)).
+2. **Provide an initial velocity** — a matrix `U0` in the Lie algebra that encodes the direction and speed of the geodesic.
+3. **Integrate the geodesic** — call `Exp(U0, B, M)` to obtain the endpoint (see [Geodesics](/concepts/geodesics)).
+
+```matlab
+% A full example on SE(2)
+B  = LIEbasis('se(2)');      % algebra basis, size 9×3
+M  = eye(3);                  % identity metric tensor
+
+% A Lie algebra element: rotation by ~0.5 rad, translate by (1, 0.5)
+U0 = [ 0   0.5  1.0 ;
+      -0.5  0   0.5 ;
+       0    0   0   ];
+
+Q1 = Exp(U0, B, M);           % endpoint of the geodesic at t=1
+```
+
+## Further reading
+
+- [Invariant metrics](/concepts/invariant-metrics) — how to define a Riemannian metric on a Lie group
+- [Geodesics](/concepts/geodesics) — exponential and logarithm maps under invariant metrics
+- [`LIEbasis` API reference](/api/liebasis) — basis construction for all supported groups
+- [`StructureTensor` API reference](/api/structure-tensor) — computing structure constants

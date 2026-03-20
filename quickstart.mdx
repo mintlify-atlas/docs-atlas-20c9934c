@@ -1,80 +1,157 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Compute your first left-invariant geodesic on SE(2) in under five minutes."
 ---
 
-## Get started in three steps
+This guide walks you through installing LIgeodesics and computing geodesics on SE(2) — the group of 2D rigid body motions — using both the closed-form `Exp_SE` function and the generic `Exp` function.
 
-Get your documentation site running locally and make your first customization.
+<Info>
+  SE(2) represents planar rigid motions: a 2D rotation combined with a 2D translation. Elements are 3×3 matrices of the form `[R, t; 0, 1]` where `R` is a 2×2 rotation matrix and `t` is a 2×1 translation vector. See [Lie groups](/concepts/lie-groups) for background.
+</Info>
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Clone the repository and add it to your MATLAB path">
+    Clone LIgeodesics from GitHub and add the toolbox root to your MATLAB path.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```matlab
+    % In a terminal:
+    % git clone https://github.com/ezacur/LIgeodesics.git
 
-### Step 2: Deploy your changes
+    % Then in MATLAB:
+    addpath(genpath('/path/to/LIgeodesics'))
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    <Tip>
+      Add the `addpath` call to your `startup.m` file so the toolbox is available in every MATLAB session automatically.
+    </Tip>
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Define an initial velocity in the SE(2) Lie algebra">
+    Elements of the SE(2) Lie algebra are 3×3 matrices with a skew-symmetric upper-left 2×2 block and an arbitrary 2×1 translation column. The bottom row is all zeros.
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```matlab
+    % Rotation rate (skew-symmetric 2x2 block)
+    theta = pi / 4;          % radians per unit time
+    omega = [0, -theta;
+             theta,  0];
 
-### Step 3: Go live
+    % Translation velocity
+    tau = [1; 0.5];
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    % Assemble the Lie algebra element U0 in se(2)
+    U0 = [omega, tau;
+          0,     0,   0];
+    ```
+
+    <Note>
+      `Exp_SE` validates that `U0` is correctly structured: the rotation block must be skew-symmetric and the bottom row must be `[0, 0, 0]`. An error is raised if either condition is violated.
+    </Note>
+  </Step>
+
+  <Step title="Compute the geodesic endpoint with Exp_SE">
+    [`Exp_SE`](/api/exp-se) computes the Riemannian exponential of `U0` using a closed-form expression. The result `Qt` is the group element reached by following the geodesic from the identity for `time` units.
+
+    ```matlab
+    % Geodesic endpoint at t = 1 (default)
+    Qt = Exp_SE(U0);
+
+    % Geodesic at a specific time
+    Qt1 = Exp_SE(U0, 1);
+
+    % Geodesic evaluated at multiple times
+    times = linspace(0, 1, 50);
+    [Qt_path, Ut_path] = Exp_SE(U0, times);
+    ```
+
+    `Qt_path` is a `3×3×50` array. Each `Qt_path(:,:,k)` is an SE(2) element at `times(k)`. The optional second output `Ut_path` contains the corresponding velocity in the Lie algebra at each time.
+
+    ```matlab
+    % Inspect the endpoint
+    R1 = Qt1(1:2, 1:2);   % 2x2 rotation matrix at t=1
+    t1 = Qt1(1:2, 3);     % 2x1 translation at t=1
+
+    % Plot the translation component of the geodesic path
+    tx = squeeze(Qt_path(1, 3, :));
+    ty = squeeze(Qt_path(2, 3, :));
+    figure; plot(tx, ty); axis equal
+    xlabel('x'); ylabel('y');
+    title('SE(2) geodesic — translation component')
+    ```
+  </Step>
+
+  <Step title="Recover the velocity with Log_SE">
+    [`Log_SE`](/api/exp-se) inverts the exponential map. Given a group element `Q`, it returns the distance `d` from the identity and the Lie algebra element `U` such that `Exp_SE(U)` reproduces `Q`.
+
+    ```matlab
+    Q = Qt1;               % SE(2) element from the previous step
+    [d, U] = Log_SE(Q);
+
+    % d  — geodesic distance from the identity to Q
+    % U  — Lie algebra element (same structure as U0)
+
+    % Verify round-trip accuracy
+    norm(Exp_SE(U) - Q, 'fro')   % should be close to machine epsilon
+    ```
+
+    <Tip>
+      `Log_SE` validates that its input is a proper SE(n) element: the rotation block must satisfy `R'R = I` and the bottom row must be `[0, …, 0, 1]`. Pass exact group elements to avoid spurious errors.
+    </Tip>
+  </Step>
+
+  <Step title="Use the generic Exp with LIEbasis for any group">
+    For groups without a dedicated closed-form function, use the generic [`Exp`](/api/exp) together with `LIEbasis`. `LIEbasis` constructs the Lie algebra basis matrix for a named group; `Exp` integrates the geodesic ODE with an adaptive Taylor-series method.
+
+    ```matlab
+    % Build the SE(2) Lie algebra basis (3 basis elements, 9 entries each)
+    B = LIEbasis('se(2)');   % 9x3 matrix — each column is a vectorised basis element
+
+    % Define a metric tensor on the algebra (identity = isotropic metric)
+    K = size(B, 2);          % K = 3 for SE(2)
+    MetricTensor = eye(K);
+
+    % Use the same U0 defined above
+    Q1_generic = Exp(U0, B, MetricTensor);
+    ```
+
+    `LIEbasis` supports a wide range of named groups. Pass the dimension as a number inside the parentheses:
+
+    ```matlab
+    B_SO3  = LIEbasis('so(3)');    % 3D rotations
+    B_SE3  = LIEbasis('se(3)');    % 3D rigid motions
+    B_SIM2 = LIEbasis('sim(2)');   % 2D similarities
+    B_SL2  = LIEbasis('sl(2)');    % 2x2 unit-determinant matrices
+    B_GL2  = LIEbasis('gl(2)');    % 2x2 invertible matrices
+    ```
+
+    <Note>
+      For SE(2) and other supported groups, `Exp_SE` is faster than `Exp` because it uses a closed-form solution. Use `Exp` when no closed-form variant exists or when you need fine-grained control over integration parameters.
+    </Note>
+
+    Evaluate the geodesic at multiple times and supply integration options:
+
+    ```matlab
+    opts.T = linspace(0, 1, 100);   % output times
+    opts.TOLERANCE = 1e-12;         % Taylor series truncation tolerance
+
+    Qt_path = Exp(U0, B, MetricTensor, opts);
+    % Qt_path is 3x3x100 — one SE(2) element per time step
+    ```
+  </Step>
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Geodesics explained" icon="book" href="/concepts/geodesics">
+    Learn how left-invariant geodesics are defined and why they matter for image registration and shape analysis.
+  </Card>
+  <Card title="Lie groups" icon="shapes" href="/concepts/lie-groups">
+    A concise overview of matrix Lie groups and their Lie algebras, tailored to the toolbox.
+  </Card>
+  <Card title="Exp API reference" icon="code" href="/api/exp">
+    Full documentation for the generic `Exp` function, including all `OPTIONS` fields.
+  </Card>
+  <Card title="Exp_SE API reference" icon="code" href="/api/exp-se">
+    Closed-form exponential and logarithm for SE(n), including output format details.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

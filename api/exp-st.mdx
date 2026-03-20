@@ -1,0 +1,165 @@
+---
+title: 'Exp_ST / Exp_ST1'
+description: 'Geodesic exponential map on the Scaling-Translation group ST(n), with a metric-weighted variant.'
+keywords: ['ST(n)', 'scaling translation', 'hyperbolic functions', 'closed-form', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  ST(n) is the group of uniform-scaling and translation transformations (no rotation), represented
+  as (n+1)×(n+1) upper-triangular matrices of the form `[sI, t; 0, 1]`, where `s > 0` is the
+  scale factor and `t ∈ ℝⁿ` is the translation. Its Lie algebra element has the form
+  `[σI, τ; 0, 0]`.
+</Info>
+
+<Tabs>
+  <Tab title="Exp_ST">
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_ST( U0 , time )
+```
+
+## Description
+
+Computes the closed-form geodesic on ST(n) starting at the identity.
+
+The geodesic has two regimes depending on whether the translation component `τ` is zero:
+
+**When `‖τ‖ > 0`** (scaling and translation), the solution uses hyperbolic functions:
+
+Let `w = √(σ² + ‖τ‖²)` and `b = (w − σ) / ‖τ‖`. Then:
+
+$$
+s(t) = \frac{(b^2+1)\,e^{w t}}{b^2 e^{2wt} + 1}, \qquad
+t(t) = \frac{b\,(e^{2wt}-1)}{b^2 e^{2wt} + 1} \cdot \frac{\tau}{\|\tau\|}
+$$
+
+**When `‖τ‖ = 0`** (pure scaling), the solution simplifies to:
+
+$$
+s(t) = e^{\sigma t}, \qquad t(t) = 0
+$$
+
+The velocity `Ut` is computed as the time derivative of `Qt` divided by the current scale.
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **st(n)**: a (d+1)×(d+1) matrix of the form
+  `[σI, τ; 0, 0]`, where `σ` is a scalar and `τ` is a d×1 vector.
+  The diagonal of the top-left block must be uniform (all equal to `σ`).
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of ST(n) group elements. Each slice has the form `[s(t)*I, t(t); 0…0, 1]`.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of left-invariant velocities in the Lie algebra of ST(n).
+</ResponseField>
+
+## Example
+
+```matlab
+% ST(2): scaling + translation
+sigma = 0.5;
+tau   = [1; 0.5];
+
+d = 2;
+U0 = [diag(sigma*ones(1,d)), tau; zeros(1,d), 0];
+
+[Qt, Ut] = Exp_ST(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % ST(2) element at t = 1
+```
+
+  </Tab>
+  <Tab title="Exp_ST1">
+
+## Function signature
+
+```matlab
+Qt = Exp_ST1( U0 , time , M )
+```
+
+## Description
+
+A **metric-weighted variant** of `Exp_ST` restricted to the 2D case (2×2 matrices).
+
+`Exp_ST1` allows specifying a symmetric positive-definite metric matrix `M` that
+changes the inner product on the Lie algebra. The function conjugates the generator
+by the change-of-basis implied by `M`, calls `Exp_ST`, and conjugates the result back:
+
+1. Decompose `M` to build a change-of-basis matrix `Y`.
+2. Transform `U0 ← Y⁻¹ U0 Y`.
+3. Call `Exp_ST(U0, time)`.
+4. Map back: `Qt(:,:,k) ← Y * Qt(:,:,k) * Y⁻¹`.
+
+When `M = 'g'`, the function falls back to the generic matrix exponential `expm(U0 * t)`
+(no closed-form factorization).
+
+<Warning>
+  `Exp_ST1` is restricted to 2×2 input matrices (`U0` must be 2×2). For higher-dimensional
+  ST(n), use `Exp_ST` directly.
+</Warning>
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  A 2×2 Lie algebra element for ST(1). Must be 2×2.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values. Can be omitted if `M` is provided as the second argument.
+</ParamField>
+
+<ParamField path="M" type="double matrix or 'g'" default="eye(2)">
+  2×2 symmetric positive-definite metric matrix. Defaults to the identity.
+  Pass `'g'` to use the generic matrix exponential instead of the closed-form solution.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array (2×2×numel(time))">
+  Stack of ST(1) group elements computed under the metric `M`.
+</ResponseField>
+
+## Example
+
+```matlab
+U0 = [0.5, 1; 0, 0];   % ST(1) generator
+M  = [2, 0.5; 0.5, 1]; % custom symmetric metric
+
+Qt = Exp_ST1(U0, [0, 0.5, 1], M);
+
+Qt(:,:,3)   % metric-weighted ST(1) element at t = 1
+
+% Generic fallback
+Qt_g = Exp_ST1(U0, [0, 0.5, 1], 'g');
+```
+
+  </Tab>
+</Tabs>
+
+## Notes
+
+- `Exp_ST` uses a **closed-form solution with hyperbolic functions** when `‖τ‖ > 0`,
+  avoiding matrix exponentiation entirely. When `τ = 0`, the result is a simple scalar
+  exponential.
+- `Exp_ST1` is used internally by [`Exp_SIM`](/api/exp-sim) to compute the scaling-translation
+  sub-geodesic.
+- The `time` parameter in `Exp_ST1` can be omitted and passed as the second argument together
+  with `M` in a flexible call convention.
+
+## See also
+
+- [`Log_ST`](/api/log-st) — inverse map on ST(n)
+- [`Exp_SIM`](/api/exp-sim) — similarity group exponential, which uses `Exp_ST` internally
+- [`Exp_S`](/api/exp-s) — diagonal scaling exponential (no translation)

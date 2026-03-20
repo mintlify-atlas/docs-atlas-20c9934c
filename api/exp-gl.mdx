@@ -1,0 +1,140 @@
+---
+title: 'Exp_GL / Exp_GLr'
+description: 'Geodesic exponential map on the General Linear group GL(n), left- and right-invariant variants.'
+keywords: ['GL(n)', 'general linear', 'invertible matrices', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  GL(n) is the group of n×n real invertible matrices. Unlike SO(n) or SL(n), GL(n) carries no
+  canonical metric, so the geodesic depends on the choice of left- or right-invariant structure.
+  The Lie algebra **gl(n)** is the full space of n×n real matrices.
+</Info>
+
+<Tabs>
+  <Tab title="Exp_GL (left-invariant)">
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_GL( U0 , time )
+```
+
+## Description
+
+Computes the **left-invariant** geodesic on GL(n) starting at the identity.
+
+Let `W = U0 - U0ᵀ` be the skew-symmetric part of the generator (scaled by 2, since
+`U0 - U0ᵀ = U0 - U0'`). The closed-form solution splits the generator into its
+transpose and skew parts:
+
+$$
+Q(t) = \exp(t\, U_0^\top) \cdot \exp(t\, W), \quad W = U_0 - U_0^\top
+$$
+
+The left-invariant velocity is:
+
+$$
+U(t) = \exp(-t W)\, U_0\, \exp(t W)
+$$
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **gl(n)**: any d×d real matrix. No symmetry constraint.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array (d×d×numel(time))">
+  Stack of GL(n) group elements. Each slice: `expm(t*U0') * expm(t*W)`.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array (d×d×numel(time))">
+  Stack of left-invariant velocities. Each slice: `expm(-t*W) * U0 * expm(t*W)`.
+</ResponseField>
+
+## Example
+
+```matlab
+U0 = [1, 2; 3, 4];   % arbitrary 2x2 matrix (gl(2) element)
+
+[Qt, Ut] = Exp_GL(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % GL(2) element at t = 1
+Ut(:,:,1)   % left-invariant velocity at t = 0 (equals U0)
+```
+
+  </Tab>
+  <Tab title="Exp_GLr (right-invariant)">
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_GLr( U0 , time )
+```
+
+## Description
+
+Computes the **right-invariant** geodesic on GL(n) starting at the identity.
+
+The factorization is the reverse of `Exp_GL`: the skew part comes first:
+
+$$
+Q(t) = \exp(t\, W) \cdot \exp(t\, U_0^\top), \quad W = U_0 - U_0^\top
+$$
+
+The right-invariant velocity is:
+
+$$
+U(t) = \exp(t W)\, U_0\, \exp(-t W)
+$$
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **gl(n)**: any d×d real matrix.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array (d×d×numel(time))">
+  Stack of GL(n) group elements. Each slice: `expm(t*W) * expm(t*U0')`.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array (d×d×numel(time))">
+  Stack of right-invariant velocities. Each slice: `expm(t*W) * U0 * expm(-t*W)`.
+</ResponseField>
+
+## Example
+
+```matlab
+U0 = [1, 2; 3, 4];   % arbitrary 2x2 matrix
+
+[Qt, Ut] = Exp_GLr(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % right-invariant GL(2) element at t = 1
+```
+
+  </Tab>
+</Tabs>
+
+## Notes
+
+- Both functions use **closed-form computation** based on two `expm` calls per time point.
+  The factorization is specific to the GL(n) geodesic structure and avoids a single large
+  matrix exponential of the full (possibly non-normal) generator.
+- `Exp_GL` and `Exp_GLr` produce different curves on GL(n); the left- and right-invariant
+  metrics are generally not equivalent for non-symmetric generators.
+- No constraint is enforced on `U0` (any square matrix is accepted).
+
+## See also
+
+- [`Log_GL`](/api/log-gl) — inverse map on GL(n)

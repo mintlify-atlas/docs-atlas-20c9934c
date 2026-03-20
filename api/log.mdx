@@ -1,0 +1,118 @@
+---
+title: Log
+description: Riemannian logarithm on a matrix Lie group under a left-invariant metric.
+---
+
+`Log` computes the Riemannian logarithm — the inverse of `Exp` — on a matrix Lie group under a left-invariant Riemannian metric. Given a target group element `Q`, it finds the initial velocity `U` in the Lie algebra such that `Exp(U) = Q`, minimising the squared geodesic distance using a Gauss-Newton iteration with backtracking line search.
+
+## Signature
+
+```matlab
+[d, U] = Log( Q , matBases , MetricTensor )
+[d, U] = Log( Q , matBases , MetricTensor , Uinitial )
+[d, U] = Log( Q , matBases , MetricTensor , Uinitial , OPTS )
+```
+
+## Parameters
+
+<ParamField path="Q" type="double (n×n matrix)" required>
+  Target group element. The logarithm is taken from the **identity**. Must be a square matrix. Returns `d = 0` and `U = zeros(n)` immediately when `Q` is the identity.
+</ParamField>
+
+<ParamField path="matBases" type="double (n²×k matrix)" required>
+  Column-stacked basis of the Lie algebra. Each of the `k` columns is a vectorised `n×n` basis element. Must satisfy `size(matBases) == [n*n, k]`.
+</ParamField>
+
+<ParamField path="MetricTensor" type="double (k×k matrix)" required>
+  Positive-definite `k×k` matrix defining the left-invariant Riemannian metric on the algebra.
+</ParamField>
+
+<ParamField path="Uinitial" type="double (n×n matrix)">
+  Initial guess for the velocity `U` in the Lie algebra. When omitted the algorithm starts from `U = zeros(k,1)` (the zero element of the algebra). A good initial guess can significantly accelerate convergence.
+</ParamField>
+
+<ParamField path="OPTS" type="struct">
+  Options passed directly through to the internal `Exp` calls. Accepts the same fields as the `OPTS` parameter of `Exp` (e.g., `TOLERANCE`, `THRESHOLD_E`, `STEPSIZE`).
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double (scalar)">
+  Riemannian distance from the identity to `Q` along the geodesic:
+
+  ```
+  d = sqrt( u' * MetricTensor * u )
+  ```
+
+  where `u` is the algebra coordinate vector of the optimal `U`.
+</ResponseField>
+
+<ResponseField name="U" type="double (n×n matrix)">
+  Initial velocity in the Lie algebra such that `Exp(U) ≈ Q`. An `n×n` matrix equal to `reshape(matBases * u, [n, n])`.
+</ResponseField>
+
+## Behavior notes
+
+<Note>
+  `Log` is defined from the **identity**. To compute the logarithm between two arbitrary group elements `Q0` and `Q1` (i.e., the left-invariant log), pass `Q0 \ Q1` as the target:
+
+  ```matlab
+  [d, U] = Log( Q0 \ Q1 , matBases , MetricTensor );
+  ```
+</Note>
+
+<Tip>
+  The optimisation uses a **Gauss-Newton** direction with a Cholesky solve when the Hessian approximation `DᵀD` is positive definite, and falls back to a scaled eigenvector direction otherwise. A backtracking line search (factor 0.75) is applied at each iteration.
+</Tip>
+
+<Warning>
+  Convergence is not guaranteed for targets `Q` that are far from the identity (e.g., when the geodesic passes through a cut locus). Providing a good `Uinitial` is strongly recommended in such cases.
+</Warning>
+
+<Note>
+  The iteration terminates when the energy functional `E = ‖Exp(u) − Q‖²` drops below `1e-14`, or when successive iterates are numerically identical.
+</Note>
+
+## Examples
+
+### Basic logarithm
+
+```matlab
+matBases     = [ 1 0 0 0 ; 0 0 1 0 ].';
+MetricTensor = eye(2);
+
+% Target group element
+Q1 = [2.3 0.7; 0 1];
+
+[d, U] = Log( Q1 , matBases , MetricTensor );
+fprintf('Geodesic distance: %g\n', d);
+```
+
+### Verify round-trip consistency
+
+```matlab
+U0   = [-0.5 1.2; 0 0];
+Q1   = Exp( U0 , matBases , MetricTensor );
+[d, Urec] = Log( Q1 , matBases , MetricTensor );
+
+max( abs( Urec(:) - U0(:) ) )   % should be near machine epsilon
+```
+
+### With initial guess and Exp options
+
+```matlab
+Uguess = [-0.4 1.1; 0 0];
+OPTS.TOLERANCE = 1e-12;
+
+[d, U] = Log( Q1 , matBases , MetricTensor , Uguess , OPTS );
+```
+
+### Left-invariant distance between two group elements
+
+```matlab
+Q0 = [1 2; 0 1];
+Q1 = [3 -1; 0 1];
+
+[d, ~] = Log( Q0 \ Q1 , matBases , MetricTensor );
+fprintf('Left-invariant distance: %g\n', d);
+```

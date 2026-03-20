@@ -1,0 +1,122 @@
+---
+title: 'Log_SIM / Log_SIMr'
+description: 'Riemannian logarithm on the similarity group SIM(n), in left- and right-invariant forms.'
+---
+
+The similarity group SIM(n) is the group of orientation-preserving similarity transformations in n dimensions: a uniform scale `s > 0`, a rotation `R ∈ SO(n)`, and a translation `t ∈ ℝⁿ`. It is represented as an (n+1)×(n+1) homogeneous matrix:
+
+$$Q = \begin{bmatrix} sR & t \\ 0 & 1 \end{bmatrix}$$
+
+<Tabs>
+  <Tab title="Log_SIM (left-invariant)">
+
+## Signature
+
+```matlab
+[d, U] = Log_SIM(Q)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An (n+1)×(n+1) homogeneous SIM(n) matrix. The function decomposes `Q(1:n,1:n)` as `s*R` where `s = det(Q(1:n,1:n))^(1/n)` and `R ∈ SO(n)`. The last row must be `[0…0 1]`.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Left-invariant geodesic distance, combining the SO(n) and ST(n) components:
+  $$d = \sqrt{d_{SO}^2 + d_{ST}^2}$$
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Lie algebra element in sim(n), an (n+1)×(n+1) matrix formed as the sum of the rotational and scaling-translation Lie algebra elements.
+</ResponseField>
+
+## Details
+
+The decomposition is:
+
+1. Extract scale: `s = det(Q(1:n,1:n))^(1/n)`
+2. Extract rotation: `R = Q(1:n,1:n) / s`
+3. Extract translation: `t = Q(1:n,n+1)`
+4. Compute `Log_SO(R)` to get the rotational component
+5. Compute `Log_ST([s*I, t; 0, 1])` to get the scaling-translation component
+6. Combine: `U = U_SO + U_ST`
+
+  </Tab>
+  <Tab title="Log_SIMr (right-invariant)">
+
+## Signature
+
+```matlab
+[d, U] = Log_SIMr(Q)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An (n+1)×(n+1) homogeneous SIM(n) matrix. Same structural requirements as `Log_SIM`.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Right-invariant geodesic distance.
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Right-invariant Lie algebra element. This is computed by inverting `Q`, calling `Log_SIM`, and negating the result:
+  ```
+  [d, U] = Log_SIM(inv(Q));
+  U = -U;
+  ```
+</ResponseField>
+
+  </Tab>
+</Tabs>
+
+<Note>
+The distance `d` is the combined geodesic distance in the product space SO(n) × ST(n), not a simple sum. Specifically:
+$$d = \sqrt{d_{\text{SO(n)}}^2 + d_{\text{ST(n)}}^2}$$
+</Note>
+
+<Warning>
+The scale factor `s` is extracted via `det(Q(1:n,1:n))^(1/n)`, which requires the rotation-scale block to have positive determinant. Improper similarity transforms (negative determinant) will cause incorrect results.
+</Warning>
+
+## Examples
+
+### 2D similarity (left-invariant)
+
+```matlab
+s = 2.0;       % uniform scale
+theta = pi/3;  % rotation angle
+t = [1; 0.5];  % translation
+
+R = [cos(theta), -sin(theta); sin(theta), cos(theta)];
+Q = [s*R, t; 0, 0, 1];
+
+[d, U] = Log_SIM(Q);
+```
+
+### 2D similarity (right-invariant)
+
+```matlab
+[d, U] = Log_SIMr(Q);
+```
+
+### Distance-only query
+
+```matlab
+d = Log_SIM(Q);   % omit U for efficiency when only distance is needed
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `Log_SO` | Logarithm on SO(n) (rotation component) |
+| `Log_ST` | Logarithm on ST(n) (scaling-translation component) |
+| `Log_SE` | Logarithm on SE(n) (no scale) |
+| `LIEbasis('sim(n)')` | Basis matrices for the sim(n) Lie algebra |

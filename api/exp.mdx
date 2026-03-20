@@ -1,0 +1,197 @@
+---
+title: Exp
+description: Riemannian exponential map on a matrix Lie group under a left-invariant metric.
+---
+
+`Exp` computes the Riemannian exponential function on a matrix Lie group under a left-invariant Riemannian metric. Starting from the identity, it integrates the geodesic equation using an adaptive Taylor-series method and returns the group element reached at the requested time(s).
+
+## Signatures
+
+```matlab
+Q1                     = Exp( U0 , matBases , MetricTensor )
+[Q1, U1]               = Exp( U0 , matBases , MetricTensor )
+[Q1, U1, N_ITERS]      = Exp( U0 , matBases , MetricTensor )
+Qt                     = Exp( U0 , matBases , MetricTensor , TIMES )
+[Qt, Ut, N_ITERS]      = Exp( U0 , matBases , MetricTensor , OPTS )
+```
+
+## Parameters
+
+<ParamField path="U0" type="double (n×n matrix)" required>
+  Initial velocity in the Lie algebra. Must be a square matrix whose size determines the ambient dimension `n`.
+</ParamField>
+
+<ParamField path="matBases" type="double (n²×k matrix)" required>
+  Column-stacked basis of the Lie algebra. Each of the `k` columns is a vectorised `n×n` basis element.
+</ParamField>
+
+<ParamField path="MetricTensor" type="double (k×k matrix)" required>
+  Positive-definite matrix defining the left-invariant Riemannian metric on the algebra. A scalar multiple of `MetricTensor` yields the same geodesic.
+</ParamField>
+
+<ParamField path="TIMES" type="double (vector)" default="1">
+  Increasing, non-negative vector of times at which the geodesic is sampled. Pass a numeric vector as the fourth argument to use this shorthand instead of an `OPTS` struct.
+</ParamField>
+
+<ParamField path="OPTS" type="struct">
+  Options structure. All field names must be **upper-case**. Fields that are not provided fall back to their defaults.
+
+  <Expandable title="OPTS fields">
+    <ResponseField name="T" type="double (vector)" default="[1]">
+      Times at which `Qt` and `Ut` are recorded. Equivalent to passing a numeric vector as the fourth argument.
+    </ResponseField>
+
+    <ResponseField name="ORDER" type="integer scalar">
+      Order `R` of the Taylor expansion used in each integration step. When omitted the algorithm selects `R` automatically from the norm of `U0` using the rule of thumb `R = ceil(15 * norm(U0)^(1/6))`.
+    </ResponseField>
+
+    <ResponseField name="TOLERANCE" type="double" default="1e-10">
+      Maximum allowed norm of the last computed Taylor term. Controls the adaptive step-size estimate `δ*` before the reduction loop begins.
+    </ResponseField>
+
+    <ResponseField name="THRESHOLD_E" type="double" default="-1e-10">
+      Threshold for the energy conserved quantity `E`.
+
+      | Value | Behaviour |
+      |---|---|
+      | `> 0` | Absolute control: reduce step until `|E − Eⱼ| ≤ THRESHOLD_E` |
+      | `< 0` | Relative control: reduce step until `|E − Eⱼ| ≤ |THRESHOLD_E · Eⱼ|` |
+      | `0` | Hard-rescale `U` to preserve `E` exactly |
+      | `Inf` | Ignore energy control entirely |
+    </ResponseField>
+
+    <ResponseField name="THRESHOLD_S" type="double" default="-1e-10">
+      Threshold for the momentum conserved quantity `S`. Sign convention mirrors `THRESHOLD_E` (positive → absolute, negative → relative). Must be non-zero; pass `Inf` to disable.
+    </ResponseField>
+
+    <ResponseField name="ALPHA" type="double" default="0.75">
+      Multiplicative reduction factor applied to `δ` each time a threshold is violated. Must satisfy `0 < ALPHA < 1`.
+    </ResponseField>
+
+    <ResponseField name="STEPSIZE" type="double" default="0">
+      When non-zero, forces a **fixed** step size and disables all adaptive controls (`THRESHOLD_E`, `THRESHOLD_S`, and `CHECK_Q` are ignored).
+    </ResponseField>
+
+    <ResponseField name="PROJECT_U" type="logical" default="false">
+      When `true`, re-projects `U` onto the algebra after each integration step using the orthogonal projection `B * (B \ I)`.
+    </ResponseField>
+
+    <ResponseField name="CHECK_Q" type="function handle">
+      Function of the form `@(Q) bool` that verifies whether a candidate group element belongs to the group. If it returns `false`, the step size is reduced. Disabled when `STEPSIZE ≠ 0`.
+    </ResponseField>
+
+    <ResponseField name="PROJECT_Q" type="function handle">
+      Function of the form `@(Q) Q_projected` that re-projects `Q` onto the group after each step. Applied before threshold checks.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+## Return values
+
+<ResponseField name="Qt" type="double (n×n×T)">
+  Riemannian exponential evaluated at each requested time. When a single time is requested the result is an `n×n` matrix; when multiple times are requested it is an `n×n×numel(T)` array.
+</ResponseField>
+
+<ResponseField name="Ut" type="double (n×n×T)">
+  Velocity in the Lie algebra at each requested time along the geodesic.
+</ResponseField>
+
+<ResponseField name="N_ITERS" type="integer (1×2)">
+  `N_ITERS(1)` — total number of integration steps taken.
+  `N_ITERS(2)` — total number of step-size reductions performed.
+</ResponseField>
+
+## Behavior notes
+
+<Note>
+  The starting point of the exponential is always the **identity**. To compute the exponential from an arbitrary point `Q0`, use left-multiplication:
+
+  ```matlab
+  Q1 = Q0 * Exp( Q0 \ V0 , matBases , MetricTensor );
+  ```
+</Note>
+
+<Tip>
+  When `U0` satisfies the **uniparametric condition** `Σ[U0ᵀ, χ(U0)] = 0`, `Exp` short-circuits to a closed-form matrix exponential (`expm`), or to `diag(exp(diag(U0)·t))` for diagonal velocity, or to `I + U0·t` for pure-translation velocity.
+</Tip>
+
+<Warning>
+  Setting `THRESHOLD_E = 0` triggers iterative energy rescaling of `U` rather than step reduction. Use with caution — it can conflict with `PROJECT_U` or `PROJECT_Q` options applied in the same step.
+</Warning>
+
+<Warning>
+  If the step-size reduction reaches `MINSTEPSIZE` (default `1e-4`) without satisfying the thresholds, `Exp` emits a warning and continues without controls for that step. Inspect `N_ITERS(2)` to detect excessive reductions.
+</Warning>
+
+## Examples
+
+### Basic left-invariant geodesic on ST(1)
+
+```matlab
+matBases     = [ 1 0 0 0 ; 0 0 1 0 ].';
+MetricTensor = eye(2);
+Q0 = [1 2; 0 1];
+V0 = [-2 5; 0 0];
+
+% Exponential at t=1
+Q1 = Q0 * Exp( Q0 \ V0 , matBases , MetricTensor );
+```
+
+### Geodesic path (N steps)
+
+```matlab
+N = 1000;
+Q = Q0;  V = V0 / N;
+s = Q(1,1);  t_coord = Q(1,2);
+
+for j = 1:N
+  [Q, V] = Exp( Q , V , matBases , MetricTensor );
+  s(j+1)       = Q(1,1);
+  t_coord(j+1) = Q(1,2);
+end
+
+figure; plot( s , t_coord ); axis equal;
+```
+
+### Sampling the geodesic at multiple times
+
+```matlab
+TIMES = linspace(0, 1, 50);
+Qt    = Exp( U0 , matBases , MetricTensor , TIMES );
+```
+
+### With CHECK_Q and PROJECT_Q
+
+```matlab
+check_ST1   = @(Q) isequal( [ abs(Q(1,1)) , Q(1,2) ; 0 , 1 ] , Q );
+project_ST1 = @(Q) [ abs(Q(1,1)) , Q(1,2) ; 0 , 1 ];
+
+OPTS.CHECK_Q   = check_ST1;
+OPTS.PROJECT_Q = project_ST1;
+
+Q1 = Exp( U0 , matBases , MetricTensor , OPTS );
+```
+
+### Right-invariant exponential (derived)
+
+```matlab
+% Build a right-invariant wrapper from Exp:
+Exp_right = @(Q,V,mB,MT,varargin) ...
+    inv( Exp( inv(Q) , -inv(Q)*V*inv(Q) , mB , MT , varargin{:} ) );
+
+Q1r = Exp_right( Q0 , V0 , matBases , MetricTensor );
+
+% Verify right-invariance:
+Exp_right( eye(2) , V0*inv(Q0) , matBases , MetricTensor ) * Q0 - Q1r
+```
+
+### Fixed step size
+
+```matlab
+OPTS.STEPSIZE = 0.1;   % fixed step — no adaptive controls
+Q1 = Exp( U0 , matBases , MetricTensor , OPTS );
+```
+
+## Reference
+
+Zacur E., Bossa M., Olmos S., "A method to compute left-invariant Riemannian geodesics on matrix groups. Illustration on spatial transformations"

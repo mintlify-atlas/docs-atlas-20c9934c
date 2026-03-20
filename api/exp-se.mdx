@@ -1,0 +1,149 @@
+---
+title: 'Exp_SE / Exp_SEr'
+description: 'Geodesic exponential map on the Special Euclidean group SE(n), left- and right-invariant variants.'
+keywords: ['SE(n)', 'special euclidean', 'rigid body', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  SE(n) is the semidirect product SO(n) ⋉ T(n) — the group of rigid-body motions
+  (rotations and translations) in n-dimensional space. Its Lie algebra **se(n)** consists of
+  (n+1)×(n+1) matrices of the form `[ω, τ; 0, 0]`, where ω ∈ **so(n)** and τ ∈ ℝⁿ.
+</Info>
+
+<Tabs>
+  <Tab title="Exp_SE (left-invariant)">
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_SE( U0 , time )
+```
+
+## Description
+
+Computes the **left-invariant** geodesic on SE(n) starting at the identity, driven by the
+tangent vector `U0` in **se(n)**.
+
+The closed-form update at each time step is:
+
+$$
+Q(t) = \begin{bmatrix} \exp(\omega\,t) & \tau\,t \\ 0 & 1 \end{bmatrix}
+$$
+
+The rotation block uses `expm(omega * t)`. The translation column is simply `τ · t`
+(linear in time for left-invariant SE(n) geodesics).
+
+The left-invariant velocity `Ut(:,:,k)` is computed by pulling back the time derivative:
+
+$$
+U(t) = Q(t)^{-1}\,\dot{Q}(t), \quad U_{\text{trans}}(t) = R(t)^{-1}\,\tau
+$$
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **se(n)**: a (d+1)×(d+1) matrix of the form `[omega, tau; 0…0, 0]`,
+  where `omega` is d×d skew-symmetric and `tau` is a d×1 translation velocity.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of SE(n) group elements. Each slice has the block structure
+  `[R(t), t(t); 0…0, 1]`.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of left-invariant velocity elements in **se(n)**.
+  The rotation part is constant (= omega); the translation part is `R(t)⁻¹ · tau`.
+</ResponseField>
+
+## Example
+
+```matlab
+% SE(2): rotation + translation
+omega2 = [0, -0.5; 0.5, 0];  % skew-symmetric
+tau2   = [1; 0];               % translation velocity
+
+U0 = [omega2, tau2; 0, 0, 0];
+
+[Qt, Ut] = Exp_SE(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % rigid-body pose at t = 1
+```
+
+  </Tab>
+  <Tab title="Exp_SEr (right-invariant)">
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_SEr( U0 , time )
+```
+
+## Description
+
+Computes the **right-invariant** geodesic on SE(n) starting at the identity.
+
+The closed-form update differs from `Exp_SE` only in the translation column:
+
+$$
+Q(t) = \begin{bmatrix} \exp(\omega\,t) & \exp(\omega\,t)\,\tau\,t \\ 0 & 1 \end{bmatrix}
+$$
+
+The translation column is rotated by the current rotation before scaling by `t`, reflecting
+the right-invariant structure (the body-frame translation is mapped to the world frame).
+
+<Warning>
+  The second output `Ut` is **not implemented** in `Exp_SEr`. Requesting it raises an error.
+</Warning>
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **se(n)**: a (d+1)×(d+1) matrix of the form `[omega, tau; 0…0, 0]`,
+  where `omega` is d×d skew-symmetric and `tau` is a d×1 translation velocity.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of SE(n) group elements with the right-invariant geodesic structure.
+</ResponseField>
+
+## Example
+
+```matlab
+% SE(2) right-invariant geodesic
+omega2 = [0, -0.5; 0.5, 0];
+tau2   = [1; 0];
+
+U0 = [omega2, tau2; 0, 0, 0];
+
+Qt = Exp_SEr(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % right-invariant pose at t = 1
+```
+
+  </Tab>
+</Tabs>
+
+## Notes
+
+- Both functions use **closed-form computation** — the rotation block is `expm(omega * t)` and
+  the translation column is computed analytically without ODE integration.
+- The two variants produce different geodesics on SE(n): `Exp_SE` for left-invariant metrics,
+  `Exp_SEr` for right-invariant metrics.
+- The input `U0` must have a zero bottom row; the bottom-right element is also required to be zero.
+
+## See also
+
+- [`Log_SE`](/api/log-se) — inverse map: recovers the Lie algebra element from an SE(n) element

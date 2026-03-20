@@ -1,0 +1,129 @@
+---
+title: Logr
+description: Right-invariant logarithm wrapper for matrix Lie groups.
+---
+
+`Logr` computes the **right-invariant** Riemannian logarithm by transforming the problem into the equivalent left-invariant one. It inverts `Q` before calling `Log`, then negates the resulting velocity, so the returned `U` is the initial velocity of the right-invariant geodesic from the identity to `Q`.
+
+## Signature
+
+```matlab
+[d, U] = Logr( Q , matBases , MetricTensor )
+[d, U] = Logr( Q , matBases , MetricTensor , Uinitial )
+[d, U] = Logr( Q , matBases , MetricTensor , Uinitial , OPTS )
+```
+
+## Parameters
+
+<ParamField path="Q" type="double (n×n matrix)" required>
+  Target group element. The right-invariant logarithm is taken from the **identity** to `Q`.
+</ParamField>
+
+<ParamField path="matBases" type="double (n²×k matrix)" required>
+  Column-stacked basis of the Lie algebra, forwarded to `Log`.
+</ParamField>
+
+<ParamField path="MetricTensor" type="double (k×k matrix)" required>
+  Positive-definite `k×k` metric tensor on the algebra, forwarded to `Log`.
+</ParamField>
+
+<ParamField path="Uinitial" type="double (n×n matrix)">
+  Initial guess for the algebra velocity, forwarded to `Log`. Providing a good guess accelerates Gauss-Newton convergence.
+</ParamField>
+
+<ParamField path="OPTS" type="struct">
+  Options struct forwarded to the internal `Exp` calls inside `Log`. Accepts the same fields as `Exp`'s `OPTS` parameter.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double (scalar)">
+  Right-invariant geodesic distance from the identity to `Q`. Numerically equal to the left-invariant distance `Log(Q⁻¹)` because the metric is bi-invariant in the distance sense.
+</ResponseField>
+
+<ResponseField name="U" type="double (n×n matrix)">
+  Initial velocity in the Lie algebra of the **right-invariant** geodesic, equal to the negation of the left-invariant log applied to `Q⁻¹`:
+
+  ```
+  U = -Log_left(Q⁻¹)
+  ```
+</ResponseField>
+
+## Implementation
+
+`Logr` is a thin wrapper:
+
+```matlab
+function [d, U] = Logr( Q , varargin )
+  Q = Q \ eye(size(Q));   % invert Q
+  [d, U] = Log( Q , varargin{:} );
+  U = -U;                  % negate velocity
+end
+```
+
+<Note>
+  All additional arguments (`matBases`, `MetricTensor`, `Uinitial`, `OPTS`) are forwarded verbatim to `Log` via `varargin`. See the [`Log`](/api/log) reference for full parameter details.
+</Note>
+
+## Relationship to Log and Expr
+
+| Function | Invariance | Core computation |
+|---|---|---|
+| `Log` | Left-invariant | Minimise `‖Exp(U) − Q‖²` |
+| `Logr` | Right-invariant | `-Log_left(Q⁻¹)` |
+| `Expr` | Right-invariant | `inv(Exp_left(-U0))` |
+
+`Logr` is the inverse of `Expr`: for a consistent metric, `Expr(Logr(Q))` recovers `Q`.
+
+## Behavior notes
+
+<Tip>
+  Because `Logr` simply inverts `Q` and delegates to `Log`, all convergence properties, iteration limits, and numerical considerations of `Log` apply equally here. See the [`Log`](/api/log) reference for details on the Gauss-Newton solver and backtracking line search.
+</Tip>
+
+<Warning>
+  `Logr` calls `Q \ eye(size(Q))` to invert `Q`. For groups whose elements can become ill-conditioned (e.g., near-singular matrices), this inversion may be numerically unstable. Use a group-specific inverse when available.
+</Warning>
+
+## Examples
+
+### Basic right-invariant logarithm
+
+```matlab
+matBases     = [ 1 0 0 0 ; 0 0 1 0 ].';
+MetricTensor = eye(2);
+
+Q1 = [2.3 0.7; 0 1];
+[d, U] = Logr( Q1 , matBases , MetricTensor );
+fprintf('Right-invariant geodesic distance: %g\n', d);
+```
+
+### Round-trip with Expr
+
+```matlab
+U0 = [-0.5 1.2; 0 0];
+[Q1, ~] = Expr( U0 , matBases , MetricTensor );
+[d, Urec] = Logr( Q1 , matBases , MetricTensor );
+
+max( abs( Urec(:) - U0(:) ) )   % should be near machine epsilon
+```
+
+### With initial guess and Exp options
+
+```matlab
+Uguess       = [-0.4 1.1; 0 0];
+OPTS.TOLERANCE = 1e-12;
+
+[d, U] = Logr( Q1 , matBases , MetricTensor , Uguess , OPTS );
+```
+
+### Right-invariant distance between two group elements
+
+```matlab
+Q0 = [1 2; 0 1];
+Q1 = [3 -1; 0 1];
+
+% Right-invariant: compare from the right
+[d, ~] = Logr( Q1 * inv(Q0) , matBases , MetricTensor );
+fprintf('Right-invariant distance: %g\n', d);
+```

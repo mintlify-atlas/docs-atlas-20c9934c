@@ -1,0 +1,81 @@
+---
+title: 'Exp_SL'
+description: 'Geodesic exponential map on the Special Linear group SL(n).'
+keywords: ['SL(n)', 'special linear', 'volume-preserving', 'trace-zero', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  SL(n) is the subgroup of GL(n) consisting of matrices with determinant 1. Its Lie algebra
+  **sl(n)** is the space of n×n real matrices with trace zero (`trace(U0) = 0`). SL(n) inherits
+  its geodesic structure from GL(n) with the trace-zero constraint.
+</Info>
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_SL( U0 , time )
+```
+
+## Description
+
+Computes the geodesic on SL(n) starting at the identity, driven by the trace-zero generator `U0`.
+
+The implementation mirrors [`Exp_GL`](/api/exp-gl) but requires `trace(U0) = 0`. Using the
+same split into transpose and skew parts (`W = U0 - U0ᵀ`, note: uses `.'` — real transpose):
+
+$$
+Q(t) = \exp\!\left(t\, U_0^\top\right) \cdot \exp\!\left(t\, W\right), \quad W = U_0 - U_0^\top
+$$
+
+Because `trace(U0) = 0`, the result satisfies `det(Q(t)) = 1` for all `t`.
+
+The left-invariant velocity is:
+
+$$
+U(t) = \exp(-t W)\, U_0 \exp(t W)
+$$
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **sl(n)**: a d×d real matrix with `trace(U0) = 0` (tolerance 1e-12).
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array (d×d×numel(time))">
+  Stack of SL(n) group elements (determinant 1). Each slice: `expm(t*U0.') * expm(t*W)`.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array (d×d×numel(time))">
+  Stack of left-invariant velocities in **sl(n)**.
+  Each slice: `expm(-t*W) * U0 * expm(t*W)`.
+</ResponseField>
+
+## Example
+
+```matlab
+% SL(2): trace-zero generator
+U0 = [1, 2; 3, -1];   % trace = 1 + (-1) = 0
+
+[Qt, Ut] = Exp_SL(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)          % SL(2) element at t = 1
+det(Qt(:,:,3))     % should be 1
+```
+
+## Notes
+
+- **Closed-form computation** using two `expm` calls per time step, identical to
+  [`Exp_GL`](/api/exp-gl) but enforcing `trace(U0) = 0`.
+- The real (non-conjugate) transpose `.'` is used in the factorization, unlike `Exp_GL`
+  which uses the conjugate transpose `'`.
+- The function validates `trace(U0) ≈ 0` before computing.
+
+## See also
+
+- [`Exp_GL`](/api/exp-gl) — general linear exponential map (superset)

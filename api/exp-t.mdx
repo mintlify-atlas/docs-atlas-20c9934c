@@ -1,0 +1,86 @@
+---
+title: 'Exp_T'
+description: 'Geodesic exponential map on the Translation group T(n).'
+keywords: ['T(n)', 'translation group', 'linear geodesic', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  T(n) is the abelian group of translations in ℝⁿ, represented as (n+1)×(n+1) matrices of the
+  form `[I, t; 0, 1]`. Its Lie algebra consists of (n+1)×(n+1) matrices of the form
+  `[0, τ; 0, 0]`, where `τ ∈ ℝⁿ` is the translation velocity.
+</Info>
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_T( U0 , time )
+```
+
+## Description
+
+Computes the geodesic on T(n) starting at the identity, driven by the translation generator `U0`.
+
+T(n) is abelian and nilpotent; its Lie algebra is nilpotent of degree 2 (`U0² = 0`). The
+matrix exponential therefore truncates exactly after the first-order term:
+
+$$
+Q(t) = I + U_0 \, t = \begin{bmatrix} I & \tau\,t \\ 0 & 1 \end{bmatrix}
+$$
+
+This is implemented without any `expm` call:
+
+```matlab
+Qt = U0 * time(k) + eye(d+1)
+```
+
+The velocity `Ut` equals `U0` at all times.
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **t(n)**: a (d+1)×(d+1) matrix with zeros everywhere except the
+  last column of the top d rows (i.e., `[0…0, τ; 0, 0]`).
+  The function validates this structure.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of translation group elements. Each slice:
+  `Qt(:,:,k) = eye(d+1) + U0 * time(k)`.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array ((d+1)×(d+1)×numel(time))">
+  Stack of velocities. Each slice equals `U0` (constant).
+  Computed only when explicitly requested.
+</ResponseField>
+
+## Example
+
+```matlab
+% T(3): translation in 3D
+tau = [1; -0.5; 2];   % translation velocity
+
+d = 3;
+U0 = [zeros(d), tau; zeros(1, d+1)];
+
+[Qt, Ut] = Exp_T(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % translation matrix at t = 1: [I, tau; 0, 1]
+```
+
+## Notes
+
+- **Trivial closed-form**: Q(t) = I + U0·t. No `expm` call is made.
+- T(n) is abelian and left- and right-invariant geodesics are identical. There is no `Exp_Tr` variant.
+- The function validates that `U0` has the correct sparse structure (zeros except in the
+  last column of the top block).
+
+## See also
+
+- [`Exp_SE`](/api/exp-se) — rigid-body exponential (adds rotation to translation)
+- [`Exp_ST`](/api/exp-st) — scaling-translation exponential (adds scaling to translation)

@@ -1,0 +1,70 @@
+---
+title: "Introduction"
+description: "A MATLAB toolbox for computing left- and right-invariant Riemannian geodesics on matrix Lie groups."
+---
+
+## What is LIgeodesics?
+
+**LIgeodesics** is a MATLAB toolbox for computing geodesics under left- (or right-) invariant Riemannian metrics on matrix Lie groups. It implements the methods described in:
+
+> Zacur, Bossa, and Olmos. "Left-Invariant Riemannian Geodesics on Spatial Transformation Groups." *SIAM Journal on Imaging Sciences* 7.3 (2014): 1503–1557.
+
+The toolbox provides two complementary computation paths:
+
+- **Generic algorithms** (`Exp`, `Log`) — work on any matrix Lie group via adaptive Taylor-series ODE integration and Gauss-Newton optimization, given a basis and metric tensor.
+- **Closed-form implementations** (`Exp_SO`, `Exp_SE`, `Exp_SIM`, etc.) — fast, exact formulas for the most common spatial transformation groups.
+
+## Supported Lie groups
+
+| Group | Symbol | Description |
+|-------|--------|-------------|
+| Special Orthogonal | SO(n) | Rotation matrices |
+| Special Euclidean | SE(n) | Rigid body motions (rotation + translation) |
+| Similarity | SIM(n) | Isotropic scaling + rotation + translation |
+| Scaling-Translation | ST(n) | Isotropic scaling + translation |
+| General Linear | GL(n) | Invertible matrices |
+| Special Linear | SL(n) | Unit-determinant matrices |
+| Diagonal Scaling | S(n) | Diagonal positive matrices |
+| Translation | T(n) | Pure translations |
+| General Affine | GA(n) | All affine transformations |
+| Product groups | S×SO×T, etc. | Compositions of the above |
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Generic geodesic computation" icon="calculator">
+    Compute geodesics on any matrix Lie group by supplying a basis and metric tensor. The adaptive Taylor-series integrator handles arbitrary groups automatically.
+  </Card>
+  <Card title="Closed-form exponentials" icon="bolt">
+    Fast, exact exponential and logarithm maps for SO(n), SE(n), SIM(n), ST(n), GL(n), SL(n), S(n), and T(n).
+  </Card>
+  <Card title="Left and right invariance" icon="arrows-left-right">
+    All functions support both left-invariant and right-invariant metrics. Right-invariant variants are available as `Expr`, `Logr`, and `*r` suffixed functions.
+  </Card>
+  <Card title="Statistical tools" icon="chart-line">
+    Compute Fréchet/Karcher means and fit geodesic regression models to Lie-group-valued data.
+  </Card>
+  <Card title="Basis factory" icon="layer-group">
+    `LIEbasis` constructs Lie algebra bases for 15+ groups in any dimension, with optional metric-based orthogonalization.
+  </Card>
+  <Card title="Structure constants" icon="diagram-project">
+    Compute the structure constants tensor of any Lie algebra from its basis matrix.
+  </Card>
+</CardGroup>
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Compute your first geodesic on SE(2) in minutes.
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/concepts/lie-groups">
+    Understand the mathematical foundations of the toolbox.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/exp">
+    Browse the complete function reference.
+  </Card>
+  <Card title="Guides" icon="map" href="/guides/computing-geodesics">
+    Step-by-step guides for common tasks.
+  </Card>
+</CardGroup>

@@ -1,0 +1,201 @@
+---
+title: 'GeodesicRegress / GeodesicRegression'
+description: 'Geodesic regression on Lie groups — fit a multi-predictor geodesic model or a single-predictor time-indexed geodesic to group-valued observations.'
+---
+
+LIgeodesics provides two complementary geodesic regression functions:
+
+- **`GeodesicRegress`** — multi-predictor regression: fit a model `Y ≈ exp(X₁·U₁) · exp(X₂·U₂) · … · exp(Xc·Uc)` for multiple scalar covariates.
+- **`GeodesicRegression`** — single time-predictor regression: fit a geodesic `Y(t) = Y₀ · exp(t · U₀)` passing through the data as a function of time.
+
+<Tabs>
+  <Tab title="GeodesicRegress">
+
+## Signature
+
+```matlab
+[Us, E] = GeodesicRegress(Xs, Y, ...)
+```
+
+## Parameters
+
+<ParamField path="Xs" type="cell array | double" required>
+  Predictor variables. Either:
+  - A single N×C numeric matrix of C covariates for N observations
+  - A cell array of vectors/scalars/matrices, one cell per covariate (each is replicated to length N if scalar)
+
+  Observations with any non-finite predictor or zero weight are excluded automatically.
+</ParamField>
+
+<ParamField path="Y" type="double array" required>
+  An n×n×N array of N observed group elements.
+</ParamField>
+
+<ParamField path="'EXPfcn'" type="function handle" required>
+  The group exponential function. Called as `EXP_fun(U)` where `U` is an n×n Lie algebra element.
+</ParamField>
+
+<ParamField path="'LOGfcn'" type="function handle" required>
+  The group logarithm function returning the geodesic distance. Called as `d = LOG_fun(Q)` (distance-only signature).
+</ParamField>
+
+<ParamField path="'Basis'" type="double matrix" required>
+  An n²×K basis matrix for the Lie algebra, as returned by `LIEbasis`. The regression is parameterized in these K coordinates.
+</ParamField>
+
+<ParamField path="'Weight'" type="double vector">
+  An N×1 vector of non-negative observation weights. Defaults to uniform weights (all ones).
+</ParamField>
+
+## Return values
+
+<ResponseField name="Us" type="cell array">
+  A 1×C cell array of n×n Lie algebra elements, one per covariate. `Us{c}` is the coefficient matrix for the c-th predictor.
+</ResponseField>
+
+<ResponseField name="E" type="double">
+  The weighted sum of squared geodesic residuals at convergence.
+</ResponseField>
+
+## Details
+
+The model is a product of exponentials:
+
+$$\hat{Y}_i = \exp(X_{i1} U_1) \cdot \exp(X_{i2} U_2) \cdots \exp(X_{iC} U_C)$$
+
+Optimization alternates between coordinate blocks (alternating least squares) and joint optimization using `Optimize`. Up to `MAX_ITS = 100` outer iterations and `MAX_ALT_ITS = 40` inner iterations per block.
+
+<Note>
+The optimization is non-convex. Results depend on initialization (the zero matrix for all `Us`). For better convergence, consider initializing with results from a simpler model or a KarcherMean computation.
+</Note>
+
+  </Tab>
+  <Tab title="GeodesicRegression">
+
+## Signature
+
+```matlab
+[Y0, V0, E] = GeodesicRegression(Ts, Ys, C, EXP_fun, LOG_fun, BASIS)
+```
+
+## Parameters
+
+<ParamField path="Ts" type="double vector" required>
+  An N-vector of time (or scalar predictor) values for the N observations. Non-finite values are excluded automatically.
+</ParamField>
+
+<ParamField path="Ys" type="double array" required>
+  An n×n×N array of N observed group elements.
+</ParamField>
+
+<ParamField path="C" type="[] | double | cell array" required>
+  Controls the reference point and time origin:
+  - `[]` — use `mean(Ts)` as the time origin, and compute a KarcherMean of `Ys` as the reference point.
+  - A scalar — use it as the time origin `T0`; the reference `Y0` is initialized automatically.
+  - A 2-element cell `{T0, Y0_init}` — use `T0` as the time origin and `Y0_init` as the initial reference point.
+</ParamField>
+
+<ParamField path="EXP_fun" type="function handle" required>
+  The group exponential. Called as `EXP_fun(U)` returning an n×n group element. Also called with two arguments `EXP_fun(U, t)` to propagate along the geodesic.
+</ParamField>
+
+<ParamField path="LOG_fun" type="function handle" required>
+  The group logarithm with signature `[d, U] = LOG_fun(Q)` returning distance and Lie algebra element.
+</ParamField>
+
+<ParamField path="BASIS" type="double matrix" required>
+  An n²×K basis matrix for the Lie algebra (from `LIEbasis`). The geodesic velocity is parameterized in K coordinates.
+</ParamField>
+
+## Return values
+
+<ResponseField name="Y0" type="double matrix">
+  The n×n group element at time `t = 0` (the foot-point of the fitted geodesic).
+</ResponseField>
+
+<ResponseField name="V0" type="double matrix">
+  The n×n tangent vector (in the ambient space, not the Lie algebra) at `Y0`: `V0 = Y0 * U0` where `U0` is the Lie algebra velocity.
+</ResponseField>
+
+<ResponseField name="E" type="double">
+  Sum of squared geodesic residuals at convergence.
+</ResponseField>
+
+## Details
+
+Fits the model:
+
+$$Y(t) = Y_0 \cdot \exp((t - t_0) U_0)$$
+
+The optimization is over the pair `(Y0, U0)`, alternating between them using `Optimize` with conjugate-gradient and quasi-Newton steps. After convergence, a joint optimization step is performed.
+
+<Tip>
+Providing a sensible reference point `C = {T0, M}` where `M` is a KarcherMean of `Ys` usually gives faster convergence than using `C = []`.
+</Tip>
+
+  </Tab>
+</Tabs>
+
+<Warning>
+Both functions call the internal `Optimize` routine (a third-party optimization engine bundled with LIgeodesics). They require numerical Jacobians and can be slow for large n or large N.
+</Warning>
+
+## Examples
+
+### GeodesicRegress: single covariate
+
+```matlab
+BASIS = LIEbasis('st(1)');
+Xs = {(1:10).'};
+Y  = ... ;   % 2x2x10 array of ST(1) elements
+
+[Us, E] = GeodesicRegress(Xs, Y, ...
+    'EXPfcn', @Exp_ST, ...
+    'LOGfcn', @Log_ST, ...
+    'Basis',  BASIS);
+
+fprintf('Coefficient: \n'); disp(Us{1})
+```
+
+### GeodesicRegression: time series
+
+```matlab
+Ts = (1:5) - 3;   % t = -2, -1, 0, 1, 2
+Ys = ... ;        % 3x3x5 array of SE(2) elements
+
+[Y0, V0, E] = GeodesicRegression(Ts, Ys, [], ...
+    @Exp_SE, @Log_SE, LIEbasis('se(2)'));
+
+% Evaluate the fitted geodesic at t=1
+U0 = Y0 \ V0;
+Y_t1 = Y0 * Exp_SE(1 * U0);
+```
+
+### GeodesicRegression: with a pre-computed reference
+
+```matlab
+M0 = KarcherMean(Ys, [], @Exp_SE, @Log_SE);
+T0 = mean(Ts);
+
+[Y0, V0, E] = GeodesicRegression(Ts, Ys, {T0, M0}, ...
+    @Exp_SE, @Log_SE, LIEbasis('se(2)'));
+```
+
+<AccordionGroup>
+  <Accordion title="What is the difference between GeodesicRegress and GeodesicRegression?">
+    `GeodesicRegression` fits a single geodesic as a function of one scalar time parameter (one Lie algebra velocity vector, one reference point). `GeodesicRegress` is the more general form: it handles multiple covariates and fits one Lie algebra element per covariate, combining them as a product of exponentials.
+  </Accordion>
+  <Accordion title="When should I supply C = {T0, Y0} instead of C = []?">
+    Supply a reference when you have prior knowledge of where the geodesic passes. If the data spans a large range of times or the group elements are spread far apart, automatic initialization (KarcherMean) can be slow. Providing a precomputed mean as `Y0` and the mean time as `T0` is the recommended practice.
+  </Accordion>
+  <Accordion title="How do I evaluate the fitted geodesic at new time points?">
+    After fitting `[Y0, V0, E]`, compute the Lie algebra velocity as `U0 = Y0 \ V0`. Then evaluate at any time `t` as `Y_t = Y0 * EXP_fun(t * U0)`.
+  </Accordion>
+</AccordionGroup>
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `KarcherMean` | Fréchet mean (special case of regression with one point) |
+| `LIEbasis` | Construct the Lie algebra basis required by both functions |

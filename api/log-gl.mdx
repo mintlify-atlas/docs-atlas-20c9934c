@@ -1,0 +1,157 @@
+---
+title: 'Log_GL / Log_GLr'
+description: 'Riemannian logarithm on the general linear group GL(n), with multiple initialization strategies and conjugate-point detection.'
+---
+
+The general linear group GL(n) is the group of n×n real invertible matrices with positive determinant. Unlike SO(n) or SE(n), there is no closed-form matrix logarithm that is always correct on GL(n); the logarithm is computed by numerical optimization.
+
+<Warning>
+`Log_GL` is significantly more computationally intensive than the other logarithm functions. It uses iterative numerical optimization with multiple initialization heuristics, backtracking line search, and automatic random restarts. For large-scale computations, consider caching results or using a group with a closed-form logarithm if possible.
+</Warning>
+
+<Tabs>
+  <Tab title="Log_GL (left-invariant)">
+
+## Signature
+
+```matlab
+[d, U] = Log_GL(Q)
+[d, U] = Log_GL(Q, INITIAL)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An n×n real invertible matrix with `det(Q) > 0`. The function validates this condition and raises an error if violated.
+</ParamField>
+
+<ParamField path="INITIAL" type="double | cell array">
+  Initial guess(es) for the optimization. Accepts:
+  - A single n×n matrix (used as the starting point)
+  - A numeric vector of strategy codes (integers 0–12) tried in order
+  - A cell array mixing matrices and strategy codes
+
+  If omitted, the default sequence `{1, 0, 2, 3, …, 20}` is used automatically. See the initialization strategy table below.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Geodesic distance from the identity to `Q`, equal to `norm(U, 'fro')`.
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Lie algebra element (n×n matrix) satisfying `Exp_GL(U) ≈ Q` to high numerical accuracy.
+</ResponseField>
+
+  </Tab>
+  <Tab title="Log_GLr (right-invariant)">
+
+## Signature
+
+```matlab
+[d, U] = Log_GLr(Q)
+[d, U] = Log_GLr(Q, INITIAL)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An n×n real invertible matrix with `det(Q) > 0`.
+</ParamField>
+
+<ParamField path="INITIAL" type="double | cell array">
+  Initial guess(es), same format as `Log_GL`. Numeric matrix hints are negated automatically before being passed to the underlying left-invariant computation.
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Right-invariant geodesic distance.
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Right-invariant Lie algebra element. Computed by inverting `Q`, calling `Log_GL`, and negating the result.
+</ResponseField>
+
+  </Tab>
+</Tabs>
+
+## Initialization strategies
+
+The solver attempts initialization strategies in order, stopping at the first that yields a solution with energy below the convergence threshold. The built-in strategies are:
+
+| Code | Strategy description |
+|---|---|
+| `0` | Zero matrix |
+| `1` | `real(logm(R0 * trace(D) / n))` where `Q = U·D·V'` is the SVD and `R0 = U·V'` |
+| `2` | `real(logm(R0)) + I·log(det(Q))/n` |
+| `3` | `real(logm(R0)/2) + I·log(det(Q))/n` |
+| `4` | Symmetrized log using diagonal of `Q·R0'` |
+| `5` | Symmetrized log using full `Q·R0'` |
+| `6` | SVD-based decomposition into symmetric and orthogonal parts |
+| `7` | `real(logm(Q))` corrected by its anti-symmetric part |
+| `8` | `real(logm(Q))` directly |
+| `9` | `0.9 * Q` |
+| `10` | Identity matrix |
+| `11` | `Q - I` |
+| `12` | QR-based decomposition |
+| `≥13` | Random n×n Gaussian matrix (new sample per attempt) |
+
+<Tip>
+For most GL(n) elements near the identity, strategies 1 or 2 converge immediately. Reserve random restarts (codes ≥ 13) for difficult cases far from the identity or near conjugate points.
+</Tip>
+
+## Numerical algorithm
+
+Internally `Log_GL` minimizes the residual energy:
+
+$$E(U) = \|\text{Exp}_{GL}(U) - Q\|_F^2$$
+
+where `Exp_GL(U) = exp(U')·exp(U - U')` is a GL(n)-specific exponential that factors through the symmetric and skew-symmetric parts. Optimization uses a modified Gauss–Newton method with Cholesky-based direction or eigendecomposition fallback.
+
+### Conjugate point detection
+
+When the energy drops below 1e-14, the solver checks whether a conjugate point lies between the identity and the current solution by searching for zeros of the Jacobian determinant along the ray `t → U(t)` for `t ∈ [1, 2]`. If a conjugate point is found at parameter `t* < 1`, the iterate is scaled by `t*/2` and the optimization continues.
+
+## Examples
+
+### Basic usage
+
+```matlab
+U0 = [0.1, 0.2; -0.1, 0.3];
+Q  = Exp_GL(U0);
+
+[d, U] = Log_GL(Q);
+fprintf('Residual: %g\n', maxnorm(U, U0));
+```
+
+### Specifying a custom initial guess
+
+```matlab
+% Provide your own starting matrix
+U_init = logm(Q);          % MATLAB built-in as warm start
+[d, U] = Log_GL(Q, U_init);
+```
+
+### Controlling the strategy sequence
+
+```matlab
+% Try strategy 2 first, then fall back to 1 and random restarts
+[d, U] = Log_GL(Q, {2, 1, 13, 14});
+```
+
+### Right-invariant version
+
+```matlab
+[d, U] = Log_GLr(Q);
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `Log_SO` | Closed-form logarithm on SO(n) |
+| `Log_SE` | Closed-form logarithm on SE(n) |
+| `LIEbasis('gl(n)')` | Basis matrices for the gl(n) Lie algebra |
+| `LIEbasis('sl(n)')` | Basis for the trace-zero subalgebra sl(n) |

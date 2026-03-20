@@ -1,0 +1,109 @@
+---
+title: 'StructureTensor'
+description: 'Compute the structure constants (structure tensor) of a Lie algebra from its basis.'
+---
+
+`StructureTensor` computes the structure constants `C^k_{ab}` of a Lie algebra from its basis matrices. These constants encode how the Lie bracket (commutator) of any two basis elements decomposes in the basis.
+
+## Signature
+
+```matlab
+C = StructureTensor(B)
+```
+
+## Parameters
+
+<ParamField path="B" type="double matrix | cell array" required>
+  The Lie algebra basis in one of two formats:
+
+  - **Matrix format**: An n²×K matrix where each column is the column-major vectorization of one n×n basis element. This is the format returned by `LIEbasis`.
+  - **Cell array format**: A cell array of K square n×n matrices, one per basis element.
+
+  All basis matrices must be square and of the same size.
+</ParamField>
+
+## Return values
+
+<ResponseField name="C" type="double array">
+  A K×K×K array of structure constants. The entry `C(a, b, k)` is the coefficient of basis element `B_k` in the expansion of the commutator `[B_a, B_b]`:
+
+  $$[B_a, B_b] = \sum_{k=1}^{K} C^k_{ab}\, B_k$$
+
+  Computed using the pseudoinverse of `B` applied to each commutator.
+</ResponseField>
+
+## Details
+
+For each pair of basis elements `(a, b)`, the commutator is:
+
+$$[B_a, B_b] = B_a B_b - B_b B_a$$
+
+This matrix is then projected onto the basis span using the pseudoinverse:
+
+$$C(a, b, :) = B^+ \cdot \operatorname{vec}([B_a, B_b])$$
+
+The result is a K×K×K tensor. Anti-symmetry in the first two indices follows from the anti-symmetry of the commutator: `C(a, b, :) == -C(b, a, :)`.
+
+<Note>
+For an abelian Lie algebra (e.g. `s(n)` or `t(n)`), all structure constants are zero. `StructureTensor` will still return a zero K×K×K array in this case.
+</Note>
+
+<Warning>
+The basis `B` is not validated for closure under the Lie bracket inside `StructureTensor`. If your basis is not a Lie algebra, the pseudoinverse projection will silently give incorrect results. Use `LIEbasis` with a custom cell array to perform validation.
+</Warning>
+
+## Examples
+
+### Structure constants of so(3)
+
+```matlab
+B = LIEbasis('so(3)');
+C = StructureTensor(B);
+% C is 3x3x3
+% For so(3), C is proportional to the Levi-Civita symbol
+
+for a = 1:3
+  for b = 1:3
+    fprintf('[B%d, B%d] = ', a, b);
+    disp(C(a,b,:))
+  end
+end
+```
+
+### Structure constants of se(2)
+
+```matlab
+B = LIEbasis('se(2)');
+C = StructureTensor(B);
+% C is 3x3x3
+```
+
+### Using a cell array input
+
+```matlab
+Bcell = { [0,-1;1,0] , [1,0;0,0] , [0,0;0,1] };
+C = StructureTensor(Bcell);
+```
+
+### Verifying the commutator relation
+
+```matlab
+B = LIEbasis('so(3)');
+C = StructureTensor(B);
+n = sqrt(size(B,1));
+K = size(B,2);
+
+% Check [B1, B2] == sum_k C(1,2,k)*B_k
+B1 = reshape(B(:,1), n, n);
+B2 = reshape(B(:,2), n, n);
+comm12 = B1*B2 - B2*B1;
+recon  = reshape(B * squeeze(C(1,2,:)), n, n);
+fprintf('Reconstruction error: %g\n', norm(comm12 - recon, 'fro'));
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `LIEbasis` | Construct or validate a Lie algebra basis |
+| `KarcherMean` | Fréchet mean computation using Exp/Log pairs |

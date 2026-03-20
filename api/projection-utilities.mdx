@@ -1,0 +1,174 @@
+---
+title: 'Projection utilities'
+description: 'Project a general matrix onto SO(n), SL(n), or SO(n)×S — the nearest rotation, unit-determinant, or similarity matrix.'
+---
+
+These three utility functions compute the nearest group element (in Frobenius norm) to a given matrix. They are useful for enforcing group structure after numerical operations that may drift off the manifold.
+
+## projectOnSO
+
+Projects an arbitrary square matrix onto SO(n) — the group of proper rotation matrices.
+
+### Signature
+
+```matlab
+R = projectOnSO(R)
+```
+
+### Parameters
+
+<ParamField path="R" type="double matrix" required>
+  Any n×n real matrix (does not need to be close to orthogonal). May have any determinant sign.
+</ParamField>
+
+### Return values
+
+<ResponseField name="R" type="double matrix">
+  The n×n rotation matrix (element of SO(n)) closest to the input in Frobenius norm, with `det(R) == +1`.
+</ResponseField>
+
+### Details
+
+Uses the SVD: `[U, S, V] = svd(R)`. The projection is:
+
+$$R^* = U \cdot \operatorname{diag}(1, 1, \ldots, \det(UV^\top)) \cdot V^\top$$
+
+The last singular value is replaced by `det(U·V')` to enforce `det(R*) = +1`, which handles reflections in the input.
+
+<Note>
+This is the Procrustes projection: the exact nearest point on SO(n) in Frobenius norm.
+</Note>
+
+### Example
+
+```matlab
+% Slightly perturbed rotation matrix
+theta = pi/5;
+R = [cos(theta), -sin(theta); sin(theta), cos(theta)];
+R_noisy = R + 0.01 * randn(2);
+
+R_proj = projectOnSO(R_noisy);
+% R_proj is the nearest rotation to R_noisy
+fprintf('det: %g\n', det(R_proj));   % should be 1.0
+```
+
+---
+
+## projectOnSL
+
+Projects a matrix onto SL(n) — the group of n×n real matrices with determinant equal to +1.
+
+### Signature
+
+```matlab
+M = projectOnSL(M)
+```
+
+### Parameters
+
+<ParamField path="M" type="double matrix" required>
+  Any n×n real matrix with non-zero determinant. The sign of `det(M)` is used to determine the target determinant (`+1` always for SL(n), but the sign is preserved in the correction).
+</ParamField>
+
+### Return values
+
+<ResponseField name="M" type="double matrix">
+  The n×n matrix with `det(M) == +1` that is closest to the input in Frobenius norm.
+</ResponseField>
+
+### Details
+
+If `det(M)` is already `+1`, returns immediately. Otherwise:
+
+1. Computes the SVD: `[U, S, V] = svd(M)`.
+2. Finds optimal singular values `s*` minimizing `‖[s*, det_sign/prod(s*)] − s‖²` subject to `prod(s*) == |det(M)|`, using iterative optimization.
+3. Returns `U · diag(s_opt) · V'`.
+
+<Warning>
+The optimization inside `projectOnSL` calls the `Optimize` function. For large matrices or singular values far from 1, convergence may require more iterations. For a quick approximate projection, scaling `M` by `det(M)^(-1/n)` gives a fast but less accurate result.
+</Warning>
+
+### Example
+
+```matlab
+A = [2, 1; 0.5, 1];     % det ≈ 1.5, not in SL(2)
+A_sl = projectOnSL(A);
+fprintf('det: %g\n', det(A_sl));   % should be 1.0
+```
+
+---
+
+## projectOnSOxS
+
+Projects a matrix onto the group SO(n)×S — the group of scaled rotations (a scalar multiple of a rotation matrix).
+
+### Signature
+
+```matlab
+R = projectOnSOxS(R)
+```
+
+### Parameters
+
+<ParamField path="R" type="double matrix" required>
+  Any n×n real matrix.
+</ParamField>
+
+### Return values
+
+<ResponseField name="R" type="double matrix">
+  The nearest scaled rotation: `R* = s · Q` where `Q ∈ SO(n)` and `s > 0`. The scale is chosen as `s = trace(S) / n` where `S` is the diagonal matrix of singular values.
+</ResponseField>
+
+### Details
+
+The projection is a two-step process:
+
+1. Project onto SO(n) using the Procrustes formula (same as `projectOnSO`).
+2. Scale the result by `trace(S) / n`, where `S = diag(s₁, …, sₙ)` are the singular values of the input.
+
+This gives the nearest matrix of the form `s·R` to the input, in Frobenius norm.
+
+<Note>
+The scale factor `trace(S)/n` is the mean singular value of the input. This is the isotropic scale that best approximates the input after aligning orientation.
+</Note>
+
+### Example
+
+```matlab
+% Scaled rotation with noise
+theta = pi/3;
+R = [cos(theta), -sin(theta); sin(theta), cos(theta)];
+M = 2.5 * R + 0.05 * randn(2);   % scale=2.5, some noise
+
+R_proj = projectOnSOxS(M);
+[U, S, V] = svd(R_proj);
+fprintf('Recovered scale: %g\n', trace(S)/2);  % should be near 2.5
+```
+
+---
+
+## Comparison
+
+| Function | Target group | Determinant constraint | Scale |
+|---|---|---|---|
+| `projectOnSO` | SO(n) | det = +1 | Singular values set to 1 |
+| `projectOnSL` | SL(n) | det = +1 | Singular values adjusted |
+| `projectOnSOxS` | SO(n)×S | det = sⁿ (free) | Uniform scale = mean singular value |
+
+<AccordionGroup>
+  <Accordion title="When should I use projectOnSO vs projectOnSOxS?">
+    Use `projectOnSO` when you need a pure rotation (all singular values equal to 1). Use `projectOnSOxS` when your data is a rotation up to an unknown isotropic scale — for example, when working with SIM(n) elements or structure-from-motion outputs that have an unknown global scale.
+  </Accordion>
+  <Accordion title="Why is projectOnSL slower than projectOnSO?">
+    `projectOnSO` has a closed-form formula (one SVD, no optimization). `projectOnSL` must numerically optimize the singular values to satisfy the unit-determinant constraint while minimizing the Frobenius error. For n=2 or n=3 this is fast; for large n it may be slower.
+  </Accordion>
+</AccordionGroup>
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `Log_SO` | Logarithm on SO(n) |
+| `Log_SIM` | Logarithm on SIM(n) (uses the scaled rotation part) |
+| `LIEbasis('so(n)')` | Lie algebra basis for SO(n) |

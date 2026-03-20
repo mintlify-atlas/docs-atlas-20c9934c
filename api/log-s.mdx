@@ -1,0 +1,94 @@
+---
+title: 'Log_S'
+description: 'Riemannian logarithm on the diagonal scaling group S(n).'
+---
+
+The diagonal scaling group S(n) consists of n×n diagonal matrices with strictly positive diagonal entries. It is the abelian Lie group of independent axis-aligned scalings:
+
+$$Q = \operatorname{diag}(s_1, s_2, \ldots, s_n), \quad s_i > 0$$
+
+The logarithm is element-wise and has a closed form.
+
+## Signature
+
+```matlab
+[d, U] = Log_S(Q)
+```
+
+## Parameters
+
+<ParamField path="Q" type="double matrix" required>
+  An n×n diagonal matrix with strictly positive diagonal entries. The function validates:
+  1. `Q` is square.
+  2. All diagonal entries are positive.
+  3. `Q` is exactly diagonal (no off-diagonal entries).
+</ParamField>
+
+## Return values
+
+<ResponseField name="d" type="double">
+  Geodesic distance from the identity, equal to the Euclidean norm of the log-diagonals:
+  $$d = \|\log(\operatorname{diag}(Q))\|_2 = \sqrt{\sum_{i=1}^n (\log s_i)^2}$$
+</ResponseField>
+
+<ResponseField name="U" type="double matrix">
+  Lie algebra element: the diagonal matrix `diag(log(s_1), …, log(s_n))`.
+</ResponseField>
+
+## Details
+
+Because S(n) is abelian and its Lie algebra is simply `ℝⁿ` (identified with diagonal matrices), the exponential and logarithm are both element-wise operations on the diagonal:
+
+$$\exp(U) = Q \iff U = \operatorname{diag}(\log s_1, \ldots, \log s_n)$$
+
+There are no conjugate points and no numerical issues — the logarithm always exists and is globally unique for `s_i > 0`.
+
+<Note>
+S(n) is a subgroup of the diagonal part of GL(n). If your group element has off-diagonal entries or mixed sign diagonals, use `Log_GL` instead.
+</Note>
+
+## Examples
+
+### 1D (scalar scaling)
+
+```matlab
+Q = diag([3.0]);        % single scale factor of 3
+[d, U] = Log_S(Q);
+% d = log(3) ≈ 1.0986
+% U = diag(log(3))
+```
+
+### 3D independent scalings
+
+```matlab
+Q = diag([2.0, 0.5, 4.0]);
+[d, U] = Log_S(Q);
+% d = norm([log(2), log(0.5), log(4)])
+% U = diag(log(2), log(0.5), log(4))
+```
+
+### Distance only
+
+```matlab
+d = Log_S(Q);   % U is not computed
+```
+
+### Use with KarcherMean
+
+```matlab
+% Compute mean of three diagonal scaling matrices
+Q1 = diag([1.0, 2.0]);
+Q2 = diag([2.0, 3.0]);
+Q3 = diag([3.0, 0.5]);
+Xs = cat(3, Q1, Q2, Q3);
+
+M = KarcherMean(Xs, [], @Exp_S, @Log_S);
+```
+
+## Related functions
+
+| Function | Description |
+|---|---|
+| `Log_ST` | Logarithm on ST(n) (scaling + translation) |
+| `Log_GL` | Logarithm on GL(n) (general invertible matrices) |
+| `LIEbasis('s(n)')` | Basis matrices for the s(n) Lie algebra |

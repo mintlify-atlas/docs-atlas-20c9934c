@@ -1,0 +1,228 @@
+---
+title: 'Geodesic regression'
+description: 'How to fit geodesic regression models to Lie-group-valued data using GeodesicRegression and GeodesicRegress.'
+---
+
+Geodesic regression generalises linear regression to Lie-group-valued response variables. Instead of fitting a straight line in a vector space, the model fits a **geodesic curve** on the group manifold.
+
+The toolbox provides two complementary functions:
+
+| Function | Model |
+|---|---|
+| `GeodesicRegression` | Simple geodesic regression: one scalar predictor, one group-valued response. |
+| `GeodesicRegress` | Multiple geodesic regression: multiple scalar predictors, one group-valued response (multivariate design matrix). |
+
+---
+
+## `GeodesicRegression` — simple geodesic regression
+
+### Model
+
+Fits the model
+
+$$
+Y(t) = Y_0 \cdot \exp\!\bigl(t \cdot U_0^{-1} V_0\bigr)
+$$
+
+where `Y0` is the group element at `t = 0`, `V0 = Y0 * U0` is the tangent velocity, and `t` ranges over the observed scalar times `Ts`.
+
+### Signature
+
+```matlab
+[Y0, V0, E] = GeodesicRegression( Ts, Ys, C, EXP_fun, LOG_fun, BASIS )
+```
+
+| Argument | Description |
+|---|---|
+| `Ts` | `1×N` vector of scalar predictor values (e.g. times). |
+| `Ys` | `n×n×N` array of N group-valued observations. |
+| `C` | Centering: `[]` (auto), a scalar `T0`, or a cell `{T0, M0}` supplying both the centering time and an initial mean estimate. |
+| `EXP_fun` | `@(U, varargin)` — Riemannian exponential at the identity. |
+| `LOG_fun` | `@(Q)` — Riemannian logarithm at the identity; returns `[dist, U]`. |
+| `BASIS` | `(n²)×k` Lie algebra basis matrix (from `LIEbasis`). |
+
+**Returns:** `Y0` (group element at `t = T0`), `V0 = Y0 * U0` (tangent velocity at `Y0`), `E` (residual energy).
+
+### Example — ST(1) regression
+
+```matlab
+% Generate synthetic geodesic data on ST(1)
+Ts = (1:5) - 3;                            % times: -2, -1, 0, 1, 2
+Ys = Exp_ST( [pi -1; 0 0], Ts );          % true geodesic
+for n = 1:numel(Ts)
+    Ys(:,:,n) = [5 -20; 0 1] * Ys(:,:,n); % apply a fixed offset
+end
+
+% Fit the geodesic regression model
+[Y0, V0, E] = GeodesicRegression( Ts, Ys, [], ...
+                  @(varargin) Exp_ST(varargin{:}), ...
+                  @(Q)         Log_ST(Q), ...
+                  LIEbasis('st(1)') );
+
+U0 = Y0 \ V0;   % algebra element of the fitted geodesic velocity
+fprintf('Residual energy: %g\n', E);
+```
+
+### Supplying a centering point
+
+By default `GeodesicRegression` centres at `T0 = mean(Ts)` and computes the Karcher mean over `Ys` as the initial group estimate. You can override both:
+
+```matlab
+T0 = 0;
+M0 = KarcherMean( Ys, [], ...
+         @(varargin) Exp_ST(varargin{:}), @(Q) Log_ST(Q) );
+
+[Y0, V0, E] = GeodesicRegression( Ts, Ys, {T0, M0}, ...
+                  @(varargin) Exp_ST(varargin{:}), ...
+                  @(Q)         Log_ST(Q), ...
+                  LIEbasis('st(1)') );
+```
+
+### Inspecting residuals
+
+```matlab
+U0 = Y0 \ V0;
+for n = 1:numel(Ts)
+    pred_n  = Y0 * Exp_ST( Ts(n) * U0 );
+    resid_n = Log_ST( pred_n \ Ys(:,:,n) );
+    disp( resid_n );
+end
+```
+
+<Note>
+`GeodesicRegression` uses alternating optimisation over the intercept and velocity parameters, followed by a joint refinement step. Progress is printed to the console at each iteration.
+</Note>
+
+---
+
+## `GeodesicRegress` — multiple geodesic regression
+
+`GeodesicRegress` fits a model with **multiple scalar predictors** (a design matrix). The model is a product of geodesic motions, one per predictor column.
+
+### Signature
+
+```matlab
+[Us, E] = GeodesicRegress( Xs, Y, ...
+              'EXPfcn',  EXP_fcn, ...
+              'LOGfcn',  LOG_fcn, ...
+              'Basis',   BASIS,   ...
+              'Weight',  W        )   % optional
+```
+
+| Named argument | Description |
+|---|---|
+| `Xs` | Design matrix: a cell array of N-vectors (one per predictor), or a single N-vector for one predictor. |
+| `Y` | `n×n×N` array of N group-valued observations. |
+| `'EXPfcn'` | `@(U, varargin)` — exponential at the identity. **Required.** |
+| `'LOGfcn'` | `@(Q)` — logarithm at the identity; returns the geodesic distance. **Required.** |
+| `'Basis'` | `(n²)×k` basis matrix. **Required.** |
+| `'Weight'` | N-vector of non-negative observation weights (default: uniform). |
+
+**Returns:** `Us` — a C-element cell array of `n×n` algebra matrices (one per predictor column); `E` — residual energy.
+
+### Example — two-predictor regression on SE(2)
+
+```matlab
+% Observations: N group elements, two scalar predictors
+N   = 20;
+t1  = linspace(0, 1, N).';
+t2  = linspace(0, 1, N).' .^ 2;
+Xs  = {t1, t2};
+
+% (Assume Y(:,:,i) are your measured SE(2) elements)
+B   = LIEbasis('se(2)');
+
+[Us, E] = GeodesicRegress( Xs, Y, ...
+              'EXPfcn', @(U) Exp_SE(U), ...
+              'LOGfcn', @(Q) Log_SE(Q), ...
+              'Basis',  B );
+
+U1 = Us{1};   % algebra element for predictor t1
+U2 = Us{2};   % algebra element for predictor t2
+```
+
+### Weighted regression
+
+```matlab
+W = ones(N, 1);
+W([1 end]) = 0.1;   % down-weight first and last observations
+
+[Us, E] = GeodesicRegress( Xs, Y, ...
+              'EXPfcn',  @(U) Exp_SE(U), ...
+              'LOGfcn',  @(Q) Log_SE(Q), ...
+              'Basis',   B, ...
+              'Weight',  W );
+```
+
+<Warning>
+Observations where any predictor value is non-finite, or where the weight is zero or non-finite, are silently excluded before optimisation.
+</Warning>
+
+---
+
+## Choosing between the two functions
+
+<CodeGroup>
+
+```matlab Simple (one scalar predictor)
+% Use GeodesicRegression when you have one scalar predictor
+% and want automatic centering + Karcher-mean initialisation.
+[Y0, V0, E] = GeodesicRegression( Ts, Ys, [], EXP, LOG, B );
+```
+
+```matlab Multiple predictors
+% Use GeodesicRegress when you have a design matrix,
+% or when you need explicit per-predictor algebra elements.
+[Us, E] = GeodesicRegress( {t1, t2}, Y, ...
+              'EXPfcn', EXP, 'LOGfcn', LOG, 'Basis', B );
+```
+
+</CodeGroup>
+
+---
+
+## Workflow summary
+
+<Steps>
+  <Step title="Prepare your data">
+    Stack your N group-valued observations into an `n×n×N` array `Ys`, and collect predictor values in a vector `Ts` (or cell array `Xs` for multiple predictors).
+  </Step>
+
+  <Step title="Obtain the Lie algebra basis">
+    ```matlab
+    B = LIEbasis('se(2)');   % or 'st(1)', 'sim(3)', etc.
+    ```
+
+    See the [custom Lie group guide](/guides/custom-lie-group) if you need a non-standard group.
+  </Step>
+
+  <Step title="Define Exp and Log">
+    For SE(n) and SIM(n) use the closed-form functions; for other groups wrap the generic `Exp`:
+
+    ```matlab
+    EXP = @(U, varargin) Exp_SE(U, varargin{:});
+    LOG = @(Q)           Log_SE(Q);
+    ```
+  </Step>
+
+  <Step title="Run regression">
+    ```matlab
+    [Y0, V0, E] = GeodesicRegression( Ts, Ys, [], EXP, LOG, B );
+    U0 = Y0 \ V0;   % algebra element of fitted velocity
+    ```
+  </Step>
+
+  <Step title="Evaluate the fitted geodesic">
+    ```matlab
+    t_plot = linspace( min(Ts), max(Ts), 200 );
+    Qt     = zeros( size(Y0,1), size(Y0,2), numel(t_plot) );
+    for k = 1:numel(t_plot)
+        Qt(:,:,k) = Y0 * Exp_SE( t_plot(k) * U0 );
+    end
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+Alternating optimisation (used inside `GeodesicRegression`) can be sensitive to initialisation. If `E` is large after convergence, try supplying a better `{T0, M0}` centering pair computed with `KarcherMean`. See the [Karcher mean guide](/guides/karcher-mean).
+</Tip>

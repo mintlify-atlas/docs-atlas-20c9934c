@@ -1,0 +1,80 @@
+---
+title: 'Exp_S'
+description: 'Geodesic exponential map on the Diagonal Scaling group S(n).'
+keywords: ['S(n)', 'diagonal scaling', 'anisotropic scaling', 'exponential map', 'LIgeodesics']
+---
+
+<Info>
+  S(n) is the abelian group of n×n diagonal matrices with positive diagonal entries,
+  representing independent (anisotropic) scaling along each coordinate axis. Its Lie algebra
+  consists of n×n diagonal real matrices.
+</Info>
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_S( U0 , time )
+```
+
+## Description
+
+Computes the geodesic on S(n) starting at the identity, driven by the diagonal generator `U0`.
+
+Because S(n) is abelian (diagonal matrices commute), the geodesic is simply the
+entrywise exponential of the diagonal:
+
+$$
+Q(t) = \operatorname{diag}\!\left(\exp(\sigma_1 t),\, \exp(\sigma_2 t),\, \ldots,\, \exp(\sigma_d t)\right)
+$$
+
+where `σᵢ = U0(i,i)`. This is implemented as `diag(exp(sigma * t))`.
+
+The velocity `Ut` equals `U0` at all times (the metric is bi-invariant on the abelian group).
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **s(n)**: a d×d real diagonal matrix. The function validates
+  that `U0` has no off-diagonal entries.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array (d×d×numel(time))">
+  Stack of diagonal scaling matrices. Each slice:
+  `Qt(:,:,k) = diag(exp(diag(U0) * time(k)))`.
+</ResponseField>
+
+<ResponseField name="Ut" type="double array (d×d×numel(time))">
+  Stack of velocities. Each slice equals `U0` (constant, since S(n) is abelian).
+  Computed only when explicitly requested.
+</ResponseField>
+
+## Example
+
+```matlab
+% S(3): independent scaling along x, y, z
+sigma = [0.5; -0.2; 1.0];   % log-scale rates
+U0 = diag(sigma);
+
+[Qt, Ut] = Exp_S(U0, [0, 0.5, 1]);
+
+Qt(:,:,3)   % diagonal scaling matrix at t = 1
+            % = diag([exp(0.5), exp(-0.2), exp(1.0)])
+```
+
+## Notes
+
+- **Closed-form computation** via `diag(exp(sigma * t))` — no `expm` call needed.
+- S(n) is a commutative (abelian) group, so left- and right-invariant geodesics coincide.
+  There is no `Exp_Sr` variant.
+- The function validates that `U0` is exactly diagonal before computing.
+
+## See also
+
+- [`Log_S`](/api/log-s) — inverse map: recovers the diagonal generator from a scaling matrix
+- [`Exp_ST`](/api/exp-st) — scaling-translation exponential (non-diagonal, includes translation)

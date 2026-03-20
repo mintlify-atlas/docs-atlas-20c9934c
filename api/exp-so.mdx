@@ -1,0 +1,87 @@
+---
+title: 'Exp_SO'
+description: 'Geodesic exponential map on the Special Orthogonal group SO(n).'
+keywords: ['SO(n)', 'special orthogonal', 'rotation', 'exponential map', 'matrix exponential', 'LIgeodesics']
+---
+
+<Info>
+  SO(n) is the group of n×n real orthogonal matrices with determinant +1. It represents
+  rotations in n-dimensional space. Its Lie algebra **so(n)** consists of n×n skew-symmetric
+  matrices (U₀ + U₀ᵀ = 0).
+</Info>
+
+## Function signature
+
+```matlab
+[ Qt , Ut ] = Exp_SO( U0 , time )
+```
+
+## Description
+
+Computes the left-invariant geodesic on SO(n) starting at the identity, driven by the
+tangent vector `U0` in **so(n)**. The geodesic is evaluated at each scalar in `time`.
+
+The closed-form solution is the matrix exponential of the skew-symmetric generator:
+
+$$
+Q(t) = \exp(U_0 \, t)
+$$
+
+because the group exponential of a skew-symmetric matrix is exactly an orthogonal matrix.
+This is computed with MATLAB's `expm(U0 * time(k))` for each time point.
+
+When the second output `Ut` is requested, it returns the Lie-algebra–valued velocity
+(constant along the geodesic since the metric is left-invariant):
+
+$$
+U(t) = U_0
+$$
+
+## Parameters
+
+<ParamField path="U0" type="double matrix" required>
+  Lie algebra element in **so(n)**: a d×d real skew-symmetric matrix (U0 + U0ᵀ ≈ 0,
+  tolerance 1e-10). Determines the direction and speed of the geodesic.
+</ParamField>
+
+<ParamField path="time" type="double vector" default="1">
+  Scalar or vector of time values at which to evaluate the geodesic.
+  Defaults to `1` when omitted.
+</ParamField>
+
+## Returns
+
+<ResponseField name="Qt" type="double array (d×d×numel(time))">
+  Stack of rotation matrices. `Qt(:,:,k)` is the geodesic point at `time(k)`:
+  Q(t) = expm(U0 * t).
+</ResponseField>
+
+<ResponseField name="Ut" type="double array (d×d×numel(time))" >
+  Stack of Lie algebra velocities. Each slice equals `U0` (the velocity is constant).
+  Only computed when explicitly requested as a second output.
+</ResponseField>
+
+## Example
+
+```matlab
+% Geodesic on SO(3) from a skew-symmetric generator
+omega = [  0, -1,  0;
+           1,  0,  0;
+           0,  0,  0];  % rotation in the xy-plane
+
+% Evaluate at t = 0, 0.5, 1
+[Qt, Ut] = Exp_SO(omega, [0, 0.5, 1]);
+
+Qt(:,:,2)   % rotation matrix at t = 0.5
+Ut(:,:,1)   % velocity (equals omega)
+```
+
+## Notes
+
+- **Closed-form computation** via `expm(U0 * t)`. No numerical ODE integration is used.
+- The function validates that `U0` is skew-symmetric before computing.
+- The velocity `Ut` is constant (left-invariant geodesic), so all slices of `Ut` equal `U0`.
+
+## See also
+
+- [`Log_SO`](/api/log-so) — inverse map: computes the Lie algebra element from a rotation matrix
