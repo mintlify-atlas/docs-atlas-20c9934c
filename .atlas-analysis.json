@@ -1,0 +1,135 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "LIgeodesics",
+  "projectDescription": "A MATLAB toolbox for computing left- and right-invariant Riemannian geodesics on matrix Lie groups, with closed-form implementations for common groups including SO(n), SE(n), SIM(n), GL(n), and more.",
+  "theme": "palm",
+  "primaryColor": "#2E6DA4",
+  "lightColor": "#5A9BD4",
+  "darkColor": "#1A4A7A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/lie-groups",
+              "concepts/invariant-metrics",
+              "concepts/geodesics"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/computing-geodesics",
+              "guides/karcher-mean",
+              "guides/geodesic-regression",
+              "guides/custom-lie-group"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Generic Functions",
+            "pages": [
+              "api/exp",
+              "api/log",
+              "api/expr",
+              "api/logr"
+            ]
+          },
+          {
+            "group": "Group-Specific Exponentials",
+            "pages": [
+              "api/exp-so",
+              "api/exp-se",
+              "api/exp-sim",
+              "api/exp-gl",
+              "api/exp-sl",
+              "api/exp-st",
+              "api/exp-s",
+              "api/exp-t",
+              "api/exp-ga"
+            ]
+          },
+          {
+            "group": "Group-Specific Logarithms",
+            "pages": [
+              "api/log-so",
+              "api/log-se",
+              "api/log-sim",
+              "api/log-gl",
+              "api/log-st",
+              "api/log-s"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/liebasis",
+              "api/structure-tensor",
+              "api/karcher-mean",
+              "api/geodesic-regression",
+              "api/projection-utilities"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Generic left-invariant geodesic computation via adaptive Taylor-series ODE integration",
+    "Closed-form exponential and logarithm maps for SO(n), SE(n), SIM(n), ST(n), GL(n), SL(n), S(n), T(n)",
+    "Right-invariant geodesics via wrapper functions (Expr, Logr)",
+    "Lie algebra basis factory (LIEbasis) supporting 15+ matrix Lie groups",
+    "Fréchet/Karcher mean computation on Lie groups",
+    "Geodesic regression for Lie-group-valued data",
+    "Structure constants tensor computation",
+    "Group projection utilities for SO(n), SL(n), SO(n)×S"
+  ],
+  "publicApiSurface": [
+    "Exp(U0, B, MetricTensor, OPTS) - Generic left-invariant Riemannian exponential",
+    "Log(Q, B, MetricTensor, Uinitial) - Generic Riemannian logarithm",
+    "Expr(U0, B, m) - Right-invariant exponential wrapper",
+    "Logr(Q, B, MetricTensor, Uinitial) - Right-invariant logarithm wrapper",
+    "Exp_SO(U0, time) - SO(n) exponential",
+    "Exp_SE(U0, time) - SE(n) left-invariant exponential",
+    "Exp_SEr(U0, time) - SE(n) right-invariant exponential",
+    "Exp_SIM(U0, time) - SIM(n) left-invariant exponential",
+    "Exp_SIMr(U0, time) - SIM(n) right-invariant exponential",
+    "Exp_GL(U0, time) - GL(n) left-invariant exponential",
+    "Exp_GLr(U0, time) - GL(n) right-invariant exponential",
+    "Exp_SL(U0, time) - SL(n) exponential",
+    "Exp_ST(U0, time) - ST(n) isotropic scaling+translation exponential",
+    "Exp_ST1(U0, M, time) - ST(1) exponential with metric",
+    "Exp_S(U0, time) - S(n) diagonal scaling exponential",
+    "Exp_T(U0, time) - T(n) translation exponential",
+    "Exp_GA(U0, time) - GA(n) general affine exponential",
+    "Log_SO(Q) - SO(n) logarithm",
+    "Log_SE(Q) - SE(n) left-invariant logarithm",
+    "Log_SEr(Q) - SE(n) right-invariant logarithm",
+    "Log_SIM(Q) - SIM(n) logarithm",
+    "Log_SIMr(Q) - SIM(n) right-invariant logarithm",
+    "Log_GL(Q, MetricTensor) - GL(n) logarithm",
+    "Log_GLr(Q, MetricTensor) - GL(n) right-invariant logarithm",
+    "Log_ST(Q) - ST(n) logarithm",
+    "Log_ST1(Q, M) - ST(1) logarithm with metric",
+    "Log_S(Q) - S(n) logarithm",
+    "LIEbasis(groupName, metricTensor) - Lie algebra basis factory",
+    "StructureTensor(B) - Structure constants computation",
+    "KarcherMean(Xs, M, EXP_fun, LOG_fun, invariance) - Fréchet/Karcher mean",
+    "GeodesicRegress(Xs, Y, ...) - Geodesic regression (multi-predictor)",
+    "GeodesicRegression(Ts, Ys, C, EXP_fun, LOG_fun, BASIS) - Geodesic regression (time-series)",
+    "projectOnSO(R) - Project matrix onto SO(n)",
+    "projectOnSL(A) - Project matrix onto SL(n)",
+    "projectOnSOxS(A) - Project matrix onto SO(n)×S"
+  ]
+}
