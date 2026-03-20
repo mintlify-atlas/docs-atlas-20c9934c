@@ -1,0 +1,181 @@
+---
+title: "Exp_SxSOxT / Log_SxSOxT"
+description: "Geodesic exponential and logarithm on the product group S×SO(3)×T(3) — isotropic scale, 3D rotation, and 3D translation encoded in a 7×7 matrix."
+---
+
+<Info>
+  `Exp_SxSOxT` and `Log_SxSOxT` operate on a specific 7×7 matrix representation of the product
+  group **S × SO(3) × T(3)**: isotropic scaling, 3D rotation, and 3D translation.
+  The three components are stored in separate blocks of the 7×7 matrix and do not interact
+  during geodesic integration — each component evolves independently.
+</Info>
+
+## Group structure
+
+Elements `Q ∈ S×SO(3)×T(3)` are 7×7 matrices with the block structure:
+
+```
+Q = [ e^σ R   0 ]
+    [  0   I₃  t ]
+    [  0    0  1 ]
+```
+
+where:
+- `e^σ R` is a 3×3 scaled rotation (`σ ∈ ℝ`, `R ∈ SO(3)`) occupying the top-left 3×3 block
+- `t ∈ ℝ³` is a translation vector stored at rows 4–6, column 7 (`Q([46,47,48])` in linear indexing)
+- The remaining entries are identity/zero
+
+Elements of the Lie algebra have the corresponding structure:
+```
+U = [ σI₃ + Ω   0 ]
+    [    0    0   τ ]
+    [    0    0   0 ]
+```
+
+where `Ω` is skew-symmetric and `τ ∈ ℝ³`.
+
+---
+
+## Exp_SxSOxT
+
+### Signature
+
+```matlab
+[Q, U] = Exp_SxSOxT(U, t)
+```
+
+### Parameters
+
+<ParamField path="U" type="double (7×7 matrix)" required>
+  Lie algebra element. The relevant entries are:
+  - `U(1,1)` — the log-scale `σ` (same value expected at `U(1,1)`, `U(2,2)`, `U(3,3)` is inferred as `σ`)
+  - `U([10,15,2])` — the 3 independent entries of the skew-symmetric rotation part `Ω` (off-diagonal entries in the 3×3 block)
+  - `U([46,47,48])` — the 3 translation components `τ`
+</ParamField>
+
+<ParamField path="t" type="double (scalar)" default="1">
+  Time parameter. Defaults to `1` if omitted.
+</ParamField>
+
+### Return values
+
+<ResponseField name="Q" type="double (7×7 matrix)">
+  Group element at time `t`. The 3×3 top-left block is `exp(σ·t) · R(t)` where `R(t) = expm(Ω·t)`.
+  The translation entries are `τ · t`.
+</ResponseField>
+
+<ResponseField name="U" type="double (7×7 matrix)">
+  The input `U` (velocity does not change since the components evolve independently).
+</ResponseField>
+
+### Closed-form computation
+
+The exponential decouples into three independent parts:
+
+```
+Q_scale       = exp(σ · t)          — scalar
+Q_rotation    = expm(Ω · t)         — 3×3 rotation via matrix exponential
+Q_translation = τ · t               — linear in t
+```
+
+The 3×3 top-left block of `Q` is `exp(σ·t) · expm(Ω·t)`, and the translation entries `Q([46,47,48])` are `τ · t`.
+
+### Example
+
+```matlab
+% Algebra element: scale 0.1, rotation around z by 0.5 rad, translate (1,2,3)
+U = zeros(7);
+sigma = 0.1;
+U(1,1) = sigma; U(2,2) = sigma; U(3,3) = sigma;  % isotropic scale
+U(1,2) = -0.5;  U(2,1) = 0.5;                    % rotation around z
+U(4,7) = 1;     U(5,7) = 2;     U(6,7) = 3;      % translation
+
+[Q, ~] = Exp_SxSOxT(U, 1);
+
+% Verify: 3x3 block should be exp(sigma) * expm(Omega)
+Q(1:3, 1:3)
+% Translation block:
+Q([46,47,48])
+```
+
+---
+
+## Log_SxSOxT
+
+### Signature
+
+```matlab
+[d, U] = Log_SxSOxT(Q)
+[d, U] = Log_SxSOxT(Q, rho)
+```
+
+### Parameters
+
+<ParamField path="Q" type="double (7×7 matrix)" required>
+  Group element in S×SO(3)×T(3). The function reads the 3×3 top-left block and the translation
+  entries `Q([46,47,48])`.
+</ParamField>
+
+<ParamField path="rho" type="double (3×1 vector)" default="[1;1;1]">
+  Metric weights for the three components: `rho(1)` for scale, `rho(2)` for rotation, `rho(3)` for
+  translation. The distance formula is:
+
+  ```
+  d = sqrt( rho(1)*3*σ² + rho(2)*‖Ω‖² + rho(3)*‖τ‖² )
+  ```
+
+  Defaults to `[1;1;1]` (uniform metric).
+</ParamField>
+
+### Return values
+
+<ResponseField name="d" type="double (scalar)">
+  Geodesic distance from the identity to `Q` under the metric defined by `rho`.
+</ResponseField>
+
+<ResponseField name="U" type="double (7×7 matrix)">
+  Lie algebra element such that `Exp_SxSOxT(U)` reproduces `Q`. The entries are:
+  - `U([1,9,17])` — `σ = log(det(Q_3x3)^(1/3))`
+  - `U(1:3,1:3)` — the skew-symmetric log of the rotation block `R = Q_3x3 / exp(σ)`
+  - `U([46,47,48])` — the translation vector from `Q`
+</ResponseField>
+
+### Computation
+
+The logarithm decomposes the 3×3 block:
+
+```matlab
+S = det(Q(1:3,1:3))^(1/3);   % isotropic scale
+s = log(S);                    % log-scale
+R = Q(1:3,1:3) / S;           % pure rotation
+r = logmrot(R);                % rotation log (skew-symmetric 3x3)
+t = Q([46,47,48]);             % translation
+```
+
+### Example
+
+```matlab
+% Round-trip test
+U = zeros(7);
+U(1,1) = 0.1; U(2,2) = 0.1; U(3,3) = 0.1;
+U(1,2) = -0.3; U(2,1) = 0.3;
+U(4,7) = 0.5; U(5,7) = 1.0; U(6,7) = 0.2;
+
+Q = Exp_SxSOxT(U, 1);
+
+[d, U_rec] = Log_SxSOxT(Q);
+max(abs(U_rec(:) - U(:)))   % should be near machine epsilon
+```
+
+### With custom metric weights
+
+```matlab
+rho = [1; 0.5; 2];   % weight translation twice, rotation half
+[d, U] = Log_SxSOxT(Q, rho);
+```
+
+## See also
+
+- [`LIEbasis`](/api/liebasis) — use `'s*so*t(n)'` or `'so*s*t(n)'` for the algebra basis
+- [`Exp_SIM`](/api/exp-sim) — similarity group (combined scale+rotation+translation in (n+1)×(n+1) form)
+- [`Log_SIM`](/api/log-sim) — logarithm for the similarity group

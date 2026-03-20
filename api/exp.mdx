@@ -137,19 +137,18 @@ V0 = [-2 5; 0 0];
 Q1 = Q0 * Exp( Q0 \ V0 , matBases , MetricTensor );
 ```
 
-### Geodesic path (N steps)
+### Geodesic path
+
+Use a time vector to sample many points along the geodesic in a single call:
 
 ```matlab
-N = 1000;
-Q = Q0;  V = V0 / N;
-s = Q(1,1);  t_coord = Q(1,2);
+% Sample 1000 points from t=0 to t=1
+TIMES = linspace(0, 1, 1000);
+Qt = Q0 * Exp( Q0 \ V0 , matBases , MetricTensor , TIMES );
+% Qt is n×n×1000
 
-for j = 1:N
-  [Q, V] = Exp( Q , V , matBases , MetricTensor );
-  s(j+1)       = Q(1,1);
-  t_coord(j+1) = Q(1,2);
-end
-
+s       = squeeze(Qt(1,1,:));
+t_coord = squeeze(Qt(1,2,:));
 figure; plot( s , t_coord ); axis equal;
 ```
 

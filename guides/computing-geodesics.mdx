@@ -124,18 +124,17 @@ Q0 * Exp( Q0 \ V0, B, MetricTensor ) - Q1
 
 ### Example C — tracing a geodesic path
 
-```matlab
-N = 1000;
-Q = Q0;
-V = V0 / N;
-s = Q(1,1);
-t = Q(1,2);
+Use a time vector to sample many points along a geodesic from `Q0` with velocity `V0`:
 
-for j = 1:N
-    [Q, V] = Exp( Q, V, B, MetricTensor );
-    s(j+1) = Q(1,1);
-    t(j+1) = Q(1,2);
-end
+```matlab
+N     = 1000;
+TIMES = linspace(0, 1, N);
+
+Qt = Q0 * Exp( Q0 \ V0, B, MetricTensor, TIMES );
+% Qt is n×n×N
+
+s = squeeze(Qt(1,1,:));
+t = squeeze(Qt(1,2,:));
 
 figure;
 plot( s, t );

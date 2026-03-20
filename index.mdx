@@ -1,97 +1,32 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "LIgeodesics"
+description: "A MATLAB toolbox for computing left- and right-invariant Riemannian geodesics on matrix Lie groups."
 ---
 
-## Setting up
+## What is LIgeodesics?
 
-Get your documentation site up and running in minutes.
+**LIgeodesics** is a MATLAB toolbox for computing geodesics under left- (or right-) invariant Riemannian metrics on matrix Lie groups. It implements the methods described in:
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+> Zacur, Bossa, and Olmos. "Left-Invariant Riemannian Geodesics on Spatial Transformation Groups." *SIAM Journal on Imaging Sciences* 7.3 (2014): 1503–1557.
 
-## Make it yours
+The toolbox provides two complementary computation paths:
 
-Design a docs site that looks great and empowers your users.
+- **Generic algorithms** (`Exp`, `Log`) — work on any matrix Lie group via adaptive Taylor-series ODE integration and Gauss-Newton optimization, given a basis and metric tensor.
+- **Closed-form implementations** (`Exp_SO`, `Exp_SE`, `Exp_SIM`, etc.) — fast, exact formulas for the most common spatial transformation groups.
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Overview of LIgeodesics, supported groups, and key features.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Compute your first geodesic on SE(2) in minutes.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Core Concepts" icon="shapes" href="/concepts/lie-groups">
+    Understand the mathematical foundations of the toolbox.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="API Reference" icon="code" href="/api/exp">
+    Browse the complete function reference.
   </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+</CardGroup>
